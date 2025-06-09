@@ -158,12 +158,12 @@ end_month_dt = month_dt + relativedelta(months=1)
 
 
 # LIVE EDIT EVERY CSV !!!
-# edited_df = st.data_editor(
-#     PONCTUALS_REAL,
-#     num_rows="dynamic",
-#     use_container_width=True,
-#     key="csv_editor"
-# )
+edited_df = st.data_editor(
+    PONCTUALS_REAL,
+    num_rows="dynamic",
+    use_container_width=True,
+    key="csv_editor"
+)
 
 
 real = get_real_period(month_dt, end_month_dt)
@@ -174,7 +174,6 @@ balance_budget = get_daily_balance(month_dt, end_month_dt, budget)
 
 plt.plot(balance_real["date"], balance_real["balance"])
 plt.plot(balance_budget["date"], balance_budget["balance"])
-plt.show()
 
 # TODO 
 # Find a way to archive the past periodics : archive the whole history + balance of each month ?
