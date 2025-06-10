@@ -5,175 +5,189 @@ from enum import Enum
 import matplotlib.pyplot as plt
 import streamlit as st
 from typing import Any
+import os
+from pathlib import Path
+from src.utils import (
+    format_datetime,
+)
+from src.balance import (
+    get_real_period,
+    get_budget_period,
+    get_daily_balance,
+)
+
+# region INIT
+
+# region |---| Config
+
+FIRST_DAY = 6
+
+BUDGET = None
+PERIOD_START = datetime.strptime(f"{FIRST_DAY}/08/2025", "%d/%m/%Y")
+PERIOD_END = PERIOD_START + relativedelta(months=1) 
+
+# endregion
+
+# region |---| Root
+
+ROOT_PATH = Path(__file__).absolute().parent
+
+DATA_PATH = ROOT_PATH / "data"
+if not DATA_PATH.exists() :
+    os.mkdir(DATA_PATH)
+
+# endregion
+
+# region |---| User
+
+ALL_USERS = [user_folder.stem for user_folder in DATA_PATH.iterdir() if user_folder.is_dir()]
+if not "user" in st.session_state :
+    st.session_state.user = ALL_USERS[0]
+
+USER_PATH = DATA_PATH / st.session_state.user
+if not USER_PATH.exists() :
+    os.mkdir(USER_PATH)
+
+# endregion
+
+# region |---| Budget
+
+BUDGETS_PATH = USER_PATH / "budgets"
+if not BUDGETS_PATH.exists() :
+    os.mkdir(BUDGETS_PATH)
+
+# endregion
+
+# region |---| Load data
+
+PERIODICS_PATH = USER_PATH / "periodics.csv"
+PONCTUALS_PATH = USER_PATH / "ponctuals.csv"
+
+if PERIODICS_PATH.exists() :
+    PERIODICS = pd.read_csv(PERIODICS_PATH)
+else :
+    PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "days", "months"])
+PERIODICS["category"].astype(str)
+PERIODICS["description"].astype(str)
+PERIODICS["amount"].astype(float)
+PERIODICS["first"] = format_datetime(PERIODICS["first"])
+PERIODICS["days"].astype(int)
+PERIODICS["months"].astype(int)
+
+if not "periodics" in st.session_state :
+    st.session_state.periodics = PERIODICS
+
+
+
+if PONCTUALS_PATH.exists() :
+    PONCTUALS = pd.read_csv(PONCTUALS_PATH) 
+else :
+    PONCTUALS = pd.DataFrame(columns=["category", "description", "amount", "date"])
+PONCTUALS["category"].astype(str)
+PONCTUALS["description"].astype(str)
+PONCTUALS["amount"].astype(float)
+PONCTUALS["date"] = format_datetime(PONCTUALS["date"])
+
+if not "ponctuals" in st.session_state :
+    st.session_state.ponctuals = PONCTUALS
+
+# endregion
+
+# region |---| Utils
 
 class Category(str, Enum) :
-    xyz="test xyz"
-    abc="test abc"
+    house="Logement"
+    eat="Nourriture"
+    pay="Salaire"
+
 
     def __str__(self):
         return self.value
 
-FIRST_DAY = 6
-PERIODICS = pd.DataFrame({
-    "category": [Category.xyz, Category.abc],
-    "description": ["abc", "def"],
-    "amount": [1500, -1300],
-    "first": ["05/06/2025", "01/03/2025"],
-    "days": [14, None],
-    "months": [None, 1]
-
-})
-PONCTUALS_REAL = pd.DataFrame({
-    "category": [Category.xyz, Category.abc],
-    "description": ["abc -15", "def -280"],
-    "amount": [-150, -280],
-    "date": ["09/08/2025", "28/08/2025"]
-})
-PERIODICS_BUDGET = PERIODICS
-PONCTUALS_BUDGET = pd.DataFrame({
-    "category": [Category.xyz, Category.abc],
-    "description": ["abc -15 budg", "def -280 budg"],
-    "amount": [-12, -19],
-    "date": ["15/08/2025", "31/08/2025"]
-})
-
-# region Utils
-def safe_get(
-        row: pd.Series,
-        key: str,
-        default: Any=None) -> Any :
-    
-    val = row.get(key, default)
-    return default if pd.isna(val) else val
-# endregion
-
-# region periodics
-
-def get_all_occurences_in_period(
-        periodic: pd.Series,
-        period_start: datetime,
-        period_end: datetime) -> list[datetime] :
-    
-    days_interval = safe_get(periodic, "days", 0)
-    months_interval = safe_get(periodic, "months", 0)
-    
-    assert days_interval >= 0
-    assert months_interval >= 0
-    assert days_interval + months_interval > 0
-    
-    interval_dt = relativedelta(months=months_interval, days=days_interval)
-
-    first_day = safe_get(periodic, "first", None)
-    if first_day is None :
-        first_day_dt = period_start
-    else :
-        first_day_dt = datetime.strptime(first_day, "%d/%m/%Y")
-
-    occurence = first_day_dt
-    while occurence < period_start :
-        occurence += interval_dt
-
-    all_occurences = []
-    while occurence < period_end :
-        all_occurences.append(occurence)
-        occurence += interval_dt
-
-    return all_occurences        
-
-
-def get_all_periodics_in_period(
-        period_start: datetime,
-        period_end: datetime,
-        data: pd.DataFrame) -> pd.DataFrame :
-    
-    all_periodics = pd.DataFrame(columns=["category", "description", "amount", "date"])
-    for _, periodic in data.iterrows() :
-        
-        occurences = get_all_occurences_in_period(periodic, period_start, period_end)
-        for occurence in occurences :
-            all_periodics.loc[len(all_periodics)] = [
-                safe_get(periodic, "category", "NO CATEGORY"),
-                safe_get(periodic, "description", "NO DESCRIPTION"),
-                safe_get(periodic, "amount", 0),
-                occurence.strftime("%d/%m/%Y")
-            ]
-    
-    return all_periodics
+ALL_CATEGORIES = [Category.house, Category.eat, Category.pay]
 
 # endregion
 
-def get_aggregated_period(
-        period_start: datetime,
-        period_end: datetime,
-        periodics: pd.DataFrame,
-        ponctuals: pd.DataFrame) -> pd.DataFrame :
-
-    period_items = ponctuals[ponctuals.apply(lambda row: period_start <= datetime.strptime(row["date"], "%d/%m/%Y") < period_end, axis=1)]
-    period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
-
-    return pd.concat([period_items, period_periodics])
+# endregion
 
 
-def get_real_period(
-        period_start: datetime,
-        period_end: datetime,
-        periodics: pd.DataFrame=PERIODICS,
-        ponctuals: pd.DataFrame=PONCTUALS_REAL) -> pd.DataFrame :
+# region UI
 
-    return get_aggregated_period(period_start, period_end, periodics, ponctuals)
+# region |---| Settings
 
-
-def get_budget_period(
-        period_start: datetime,
-        period_end: datetime,
-        periodics: pd.DataFrame=PERIODICS,
-        periodics_budget: pd.DataFrame=PERIODICS_BUDGET,
-        ponctuals_budget: pd.DataFrame=PONCTUALS_BUDGET) -> pd.DataFrame :
+def display_settings() :
     
-    return get_aggregated_period(period_start, period_end, pd.concat([periodics, periodics_budget]), ponctuals_budget)
+    col_settings = st.columns(4)
 
+    user = col_settings[0].selectbox(
+        "Compte",
+        options=ALL_USERS,
+        key="user",
+    )
 
-def get_daily_balance(
-        period_start: datetime,
-        period_end: datetime,
-        aggregated_period: pd.DataFrame) -> pd.DataFrame :
+# endregion
 
-    aggregated_period["date_dt"] = pd.to_datetime(aggregated_period["date"], format="%d/%m/%Y")
-    one_day = relativedelta(days=1)
-    daily_balance = pd.DataFrame(columns=["date", "balance"])
+# region |---| Ponctuals
 
-    day = period_start
-    while day < period_end :
-        balance = aggregated_period[aggregated_period["date_dt"] <= day]["amount"].sum()
-        daily_balance.loc[len(daily_balance)] = [day, balance]
-        
-        day+=one_day
+def display_ponctuals_editor() :
+
+    edited_ponctuals = st.data_editor(
+        PONCTUALS,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="edited_ponctuals",
+        column_config={
+            "category": st.column_config.SelectboxColumn("Catégorie", options=ALL_CATEGORIES),
+            "description": st.column_config.TextColumn("Description"),
+            "amount": st.column_config.NumberColumn("Montant"),
+            "date": st.column_config.DateColumn("Date")
+        }
+    )
+    st.session_state.ponctuals = edited_ponctuals
+
+    button_save_ponctuals = st.button("Save", key="button_save_ponctuals")
+    if button_save_ponctuals :
+        edited_ponctuals.to_csv(PONCTUALS_PATH, index=False)
+
+# endregion    
+
+# region |---| Main
+
+def run_ui() :
+
+    st.set_page_config(layout="wide")
+    st.title("Cabank")
+
+    with st.container(border=True) :
+        display_settings()
     
-    return daily_balance
+    with st.container(border=True) :
+        display_ponctuals_editor()
+
+# endregion
+
+# endregion
+
+
+# region MAIN
+
+if __name__ == '__main__' :
+    run_ui()
+    print(st.session_state.user)
+
+# endregion
 
 
 
-month_dt = datetime.strptime(f"{FIRST_DAY}/08/2025", "%d/%m/%Y")
-end_month_dt = month_dt + relativedelta(months=1)
 
+# real = get_real_period(PERIOD_START, PERIOD_END, PERIODICS, PONCTUALS)
+# budget = get_budget_period(PERIOD_START, PERIOD_END, PERIODICS, PERIODICS, PONCTUALS)
 
-# LIVE EDIT EVERY CSV !!!
-edited_df = st.data_editor(
-    PONCTUALS_REAL,
-    num_rows="dynamic",
-    use_container_width=True,
-    key="csv_editor"
-)
+# balance_real = get_daily_balance(PERIOD_START, PERIOD_END, real)
+# balance_budget = get_daily_balance(PERIOD_START, PERIOD_END, budget)
 
-
-real = get_real_period(month_dt, end_month_dt)
-budget = get_budget_period(month_dt, end_month_dt)
-
-balance_real = get_daily_balance(month_dt, end_month_dt, real)
-balance_budget = get_daily_balance(month_dt, end_month_dt, budget)
-
-plt.plot(balance_real["date"], balance_real["balance"])
-plt.plot(balance_budget["date"], balance_budget["balance"])
+# plt.plot(balance_real["date"], balance_real["balance"])
+# plt.plot(balance_budget["date"], balance_budget["balance"])
 
 # TODO 
 # Find a way to archive the past periodics : archive the whole history + balance of each month ?
