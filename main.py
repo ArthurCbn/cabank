@@ -18,22 +18,25 @@ from src.balance import (
 
 # region INIT
 
-# region |---| Config
+# region |---| Period
 
-FIRST_DAY = 6
-BUDGET = None
+FIRST_DAY = 6 # TODO config file
 
 TODAY = datetime.now()
+
+if "horizon" not in st.session_state :
+    st.session_state.horizon = 1
+
 if "period_start" not in st.session_state :
     month = datetime.strptime(f"{FIRST_DAY}/{TODAY.month}/{TODAY.year}", "%d/%m/%Y")
     
     if TODAY.day < FIRST_DAY :
-        st.session_state.period_start = month - relativedelta(month=1)
+        st.session_state.period_start = month - relativedelta(month=st.session_state.horizon)
     else :   
         st.session_state.period_start = month
 
 if "period_end" not in st.session_state :
-    st.session_state.period_end = st.session_state.period_start + relativedelta(months=1) 
+    st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon) 
 
 # endregion
 
@@ -49,7 +52,12 @@ if not DATA_PATH.exists() :
 
 # region |---| User
 
-ALL_USERS = [user_folder.stem for user_folder in DATA_PATH.iterdir() if user_folder.is_dir()]
+ALL_USERS = [
+    user_folder.stem 
+    for user_folder in DATA_PATH.iterdir() 
+    if ( user_folder.is_dir() and user_folder.stem != "default" ) 
+]
+
 if not "user" in st.session_state :
     st.session_state.user = ALL_USERS[0] if len(ALL_USERS) > 0 else "default"
 
@@ -61,6 +69,8 @@ if not USER_PATH.exists() :
 # endregion
 
 # region |---| Budget
+
+BUDGET = None
 
 BUDGETS_PATH = USER_PATH / "budgets"
 if not BUDGETS_PATH.exists() :
@@ -127,6 +137,13 @@ ALL_CATEGORIES = [Category.house, Category.eat, Category.pay]
 
 def display_settings() :
     
+    def _update_period() :
+        st.session_state.period_start = st.session_state.input_period_start
+        st.session_state.horizon = st.session_state.input_horizon
+
+        st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon)
+
+
     col_settings = st.columns([1, 1, 1, 2, 1], vertical_alignment="bottom")
 
     user = col_settings[0].selectbox(
@@ -147,24 +164,27 @@ def display_settings() :
                 os.mkdir(DATA_PATH / new_user)
                 st.rerun()
     
-    month = col_settings[2].date_input(
-        "Mois courant",
+    input_period_start = col_settings[2].date_input(
+        "Début de période",
         format="DD/MM/YYYY",
-        key="month",
-        on_change=...
-    )# TODO unifier avec l'init
+        key="input_period_start",
+        value=st.session_state.period_start,
+        on_change=_update_period
+    )
     
-    horizon = col_settings[3].slider(
+    input_horizon = col_settings[3].slider(
         "Horizon (mois)",
         min_value=1,
         max_value=12,
         step=1,
-        key="horizon"
+        key="input_horizon",
+        value=st.session_state.horizon,
+        on_change=_update_period,
     )
 
-    with col_settings[4].popover("Paramètres", use_container_width=True) :
+    with col_settings[4].popover("Configuration", use_container_width=True) :
         ...
-        # TODO  
+        # TODO config
 
 
 # endregion
