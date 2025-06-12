@@ -1,4 +1,7 @@
-from datetime import datetime
+from datetime import (
+    datetime,
+    time,
+)
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 from enum import Enum
@@ -35,8 +38,7 @@ if "period_start" not in st.session_state :
     else :   
         st.session_state.period_start = month
 
-if "period_end" not in st.session_state :
-    st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon) 
+st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon) 
 
 # endregion
 
@@ -70,7 +72,7 @@ if not USER_PATH.exists() :
 
 # region |---| Budget
 
-BUDGET = None
+BUDGET = None # TODO
 
 BUDGETS_PATH = USER_PATH / "budgets"
 if not BUDGETS_PATH.exists() :
@@ -100,11 +102,22 @@ if not "periodics" in st.session_state :
 
 
 if PONCTUALS_PATH.exists() :
-    PONCTUALS = pd.read_csv(PONCTUALS_PATH) 
+    FULL_PONCTUALS = pd.read_csv(PONCTUALS_PATH)
+
+    ponctuals_in_period_mask =  (
+        ( pd.to_datetime(FULL_PONCTUALS["date"]) >= st.session_state.period_start ) &
+        ( pd.to_datetime(FULL_PONCTUALS["date"]) < st.session_state.period_end )
+    )
+
+    PONCTUALS = FULL_PONCTUALS[ponctuals_in_period_mask].reset_index(drop=True) 
+    ISOLATED_PONCTUALS = FULL_PONCTUALS[~ponctuals_in_period_mask].reset_index(drop=True) 
+
 else :
-    PONCTUALS = pd.DataFrame(columns=["category", "description", "amount", "date"])
+    PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
+    ISOLATED_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
+
 PONCTUALS["category"].astype(str)
-PONCTUALS["description"].astype(str)
+PONCTUALS["description"] = PONCTUALS["description"].fillna("").astype(str)
 PONCTUALS["amount"].astype(float)
 PONCTUALS["date"] = format_datetime(PONCTUALS["date"])
 
@@ -126,6 +139,19 @@ class Category(str, Enum) :
 
 ALL_CATEGORIES = [Category.house, Category.eat, Category.pay]
 
+def combine_and_save_csv(
+        modified_df: pd.DataFrame,
+        isolated_df: pd.DataFrame,
+        path: Path) :
+    
+    # Avoid useless warning
+    if len(isolated_df) == 0 :
+        modified_df.to_csv(path, index=False)
+        return
+
+    reunited_df = pd.concat([modified_df, isolated_df])
+    reunited_df.to_csv(path, index=False)
+
 # endregion
 
 # endregion
@@ -138,7 +164,7 @@ ALL_CATEGORIES = [Category.house, Category.eat, Category.pay]
 def display_settings() :
     
     def _update_period() :
-        st.session_state.period_start = st.session_state.input_period_start
+        st.session_state.period_start = datetime.combine(st.session_state.input_period_start, time.min)
         st.session_state.horizon = st.session_state.input_horizon
 
         st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon)
@@ -199,17 +225,37 @@ def display_ponctuals_editor() :
         use_container_width=True,
         key="edited_ponctuals",
         column_config={
-            "category": st.column_config.SelectboxColumn("Catégorie", options=ALL_CATEGORIES),
-            "description": st.column_config.TextColumn("Description"),
-            "amount": st.column_config.NumberColumn("Montant"),
-            "date": st.column_config.DateColumn("Date")
-        }
+            "date": st.column_config.DateColumn(
+                "Date", 
+                format="DD-MM-YYYY", 
+                width="small", 
+                default=st.session_state.period_start,
+                required=True,
+            ),
+            "category": st.column_config.SelectboxColumn(
+                "Catégorie", 
+                options=ALL_CATEGORIES, 
+                width="small",
+                required=True
+            ),
+            "description": st.column_config.TextColumn(
+                "Description", 
+                width="large",
+            ),
+            "amount": st.column_config.NumberColumn(
+                "Montant", 
+                width="small",
+                required=True,
+            ),
+        },
+        hide_index=True,
     )
+
     st.session_state.ponctuals = edited_ponctuals
 
     button_save_ponctuals = st.button("Save", key="button_save_ponctuals")
     if button_save_ponctuals :
-        edited_ponctuals.to_csv(PONCTUALS_PATH, index=False)
+        combine_and_save_csv(edited_ponctuals, ISOLATED_PONCTUALS, PONCTUALS_PATH)
 
 # endregion    
 
@@ -226,7 +272,9 @@ def run_ui() :
     with col_title[1].container(border=True) :
         display_settings()
     
-    with st.container(border=True) :
+    col_main_ui = st.columns([7, 3])
+
+    with col_main_ui[0].container() :
         display_ponctuals_editor()
 
 # endregion
