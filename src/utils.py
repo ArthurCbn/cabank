@@ -1,6 +1,7 @@
 import pandas as pd
 from typing import Any
 from datetime import datetime
+from pathlib import Path
 
 
 def safe_get(
@@ -14,3 +15,17 @@ def safe_get(
 
 def format_datetime(serie: pd.Series) -> pd.Series :
     return pd.to_datetime(serie, format="%Y-%m-%d")
+
+
+def combine_and_save_csv(
+        modified_df: pd.DataFrame,
+        isolated_df: pd.DataFrame,
+        path: Path) :
+    
+    # Avoid useless warning
+    if len(isolated_df) == 0 :
+        modified_df.to_csv(path, index=False)
+        return
+
+    reunited_df = pd.concat([modified_df, isolated_df])
+    reunited_df.to_csv(path, index=False)

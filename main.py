@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 from src.utils import (
     format_datetime,
+    combine_and_save_csv,
 )
 from src.balance import (
     get_real_period,
@@ -82,15 +83,17 @@ if not BUDGETS_PATH.exists() :
 
 # region |---| Load data
 
-PERIODICS_PATH = USER_PATH / "periodics.csv"
-PONCTUALS_PATH = USER_PATH / "ponctuals.csv"
+# region |---|---| Periodics
 
+PERIODICS_PATH = USER_PATH / "periodics.csv"
 if PERIODICS_PATH.exists() :
     PERIODICS = pd.read_csv(PERIODICS_PATH)
 else :
     PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "days", "months"])
+
+# Typing
 PERIODICS["category"].astype(str)
-PERIODICS["description"].astype(str)
+PERIODICS["description"] = PERIODICS["description"].fillna("").astype(str)
 PERIODICS["amount"].astype(float)
 PERIODICS["first"] = format_datetime(PERIODICS["first"])
 PERIODICS["days"].astype(int)
@@ -99,8 +102,11 @@ PERIODICS["months"].astype(int)
 if not "periodics" in st.session_state :
     st.session_state.periodics = PERIODICS
 
+# endregion
 
+# region |---|---| Ponctuals
 
+PONCTUALS_PATH = USER_PATH / "ponctuals.csv"
 if PONCTUALS_PATH.exists() :
     FULL_PONCTUALS = pd.read_csv(PONCTUALS_PATH)
 
@@ -116,6 +122,7 @@ else :
     PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
     ISOLATED_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
 
+# Typing
 PONCTUALS["category"].astype(str)
 PONCTUALS["description"] = PONCTUALS["description"].fillna("").astype(str)
 PONCTUALS["amount"].astype(float)
@@ -126,7 +133,9 @@ if not "ponctuals" in st.session_state :
 
 # endregion
 
-# region |---| Utils
+# endregion
+
+# region |---| Categories
 
 class Category(str, Enum) :
     house="Logement"
@@ -139,19 +148,6 @@ class Category(str, Enum) :
 
 ALL_CATEGORIES = [Category.house, Category.eat, Category.pay]
 
-def combine_and_save_csv(
-        modified_df: pd.DataFrame,
-        isolated_df: pd.DataFrame,
-        path: Path) :
-    
-    # Avoid useless warning
-    if len(isolated_df) == 0 :
-        modified_df.to_csv(path, index=False)
-        return
-
-    reunited_df = pd.concat([modified_df, isolated_df])
-    reunited_df.to_csv(path, index=False)
-
 # endregion
 
 # endregion
@@ -163,21 +159,18 @@ def combine_and_save_csv(
 
 def display_settings() :
     
-    def _update_period() :
-        st.session_state.period_start = datetime.combine(st.session_state.input_period_start, time.min)
-        st.session_state.horizon = st.session_state.input_horizon
-
-        st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon)
-
-
     col_settings = st.columns([1, 1, 1, 2, 1], vertical_alignment="bottom")
+
+# region |---|---| User
 
     user = col_settings[0].selectbox(
         "Sélection du compte",
         options=ALL_USERS,
         key="user",
     )
+
     with col_settings[1].popover("Nouveau compte", use_container_width=True) :
+
         with st.form(key="new_user") :
             new_user = st.text_input(
                 "Nouveau compte",
@@ -189,7 +182,18 @@ def display_settings() :
                 # TODO message de confirmation
                 os.mkdir(DATA_PATH / new_user)
                 st.rerun()
-    
+
+# endregion
+
+# region |---|---| Period
+
+    def _update_period() :
+        st.session_state.period_start = datetime.combine(st.session_state.input_period_start, time.min)
+        st.session_state.horizon = st.session_state.input_horizon
+
+        st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon)
+
+
     input_period_start = col_settings[2].date_input(
         "Début de période",
         format="DD/MM/YYYY",
@@ -208,10 +212,15 @@ def display_settings() :
         on_change=_update_period,
     )
 
+# endregion
+
+# region |---|---| Config
+
     with col_settings[4].popover("Configuration", use_container_width=True) :
         ...
         # TODO config
 
+# endregion
 
 # endregion
 
