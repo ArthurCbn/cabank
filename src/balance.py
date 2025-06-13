@@ -13,20 +13,22 @@ def get_all_occurences_in_period(
     
     days_interval = safe_get(periodic, "days", 0)
     months_interval = safe_get(periodic, "months", 0)
-    
+
     assert days_interval >= 0
     assert months_interval >= 0
-    assert days_interval + months_interval > 0
+
+    if days_interval + months_interval == 0 :
+        return []
     
     interval_dt = relativedelta(months=months_interval, days=days_interval)
 
-    first_day = safe_get(periodic, "first", None)
-    if first_day is None :
-        first_day_dt = period_start
-    else :
-        first_day_dt = datetime.strptime(first_day, "%d/%m/%Y")
+    if ( first_day := safe_get(periodic, "first", None) ) is None :
+        first_day = period_start
 
-    occurence = first_day_dt
+    if not ( ( last_day := safe_get(periodic, "last", None) ) is None ) :
+        period_end = min(period_end, last_day + relativedelta(days=1)) # +1d because we check '< period_end' but last_day is included
+    
+    occurence = first_day
     while occurence < period_start :
         occurence += interval_dt
 
@@ -52,7 +54,7 @@ def get_all_periodics_in_period(
                 safe_get(periodic, "category", "NO CATEGORY"),
                 safe_get(periodic, "description", "NO DESCRIPTION"),
                 safe_get(periodic, "amount", 0),
-                occurence.strftime("%d/%m/%Y")
+                occurence,
             ]
     
     return all_periodics
@@ -68,7 +70,7 @@ def get_aggregated_period(
         periodics: pd.DataFrame,
         ponctuals: pd.DataFrame) -> pd.DataFrame :
 
-    period_items = ponctuals[ponctuals.apply(lambda row: period_start <= datetime.strptime(row["date"], "%d/%m/%Y") < period_end, axis=1)]
+    period_items = ponctuals[ponctuals.apply(lambda row: period_start <= row["date"] < period_end, axis=1)]
     period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
 
     return pd.concat([period_items, period_periodics])
@@ -102,13 +104,12 @@ def get_daily_balance(
         period_end: datetime,
         aggregated_period: pd.DataFrame) -> pd.DataFrame :
 
-    aggregated_period["date_dt"] = pd.to_datetime(aggregated_period["date"], format="%d/%m/%Y")
     one_day = relativedelta(days=1)
     daily_balance = pd.DataFrame(columns=["date", "balance"])
 
     day = period_start
     while day < period_end :
-        balance = aggregated_period[aggregated_period["date_dt"] <= day]["amount"].sum()
+        balance = aggregated_period[aggregated_period["date"] <= day]["amount"].sum()
         daily_balance.loc[len(daily_balance)] = [day, balance]
         
         day+=one_day

@@ -351,6 +351,34 @@ def display_periodics_editor() :
 
 # endregion    
 
+# region |---| Daily Balance
+
+def display_daily_balance() :
+
+    period = get_real_period(
+        period_start=st.session_state.period_start,
+        period_end=st.session_state.period_end,
+        periodics=st.session_state.periodics,
+        ponctuals=st.session_state.ponctuals
+    )
+
+    daily_balance = get_daily_balance(
+        period_start=st.session_state.period_start,
+        period_end=st.session_state.period_end,
+        aggregated_period=period
+    )
+
+    # TODO mettre en pointillés les jours futur + mettre en forme l'axe X avec quadrillage horizontal
+    fig = plt.figure()
+    plt.plot(daily_balance["date"], daily_balance["balance"])
+    plt.title("Balance de la période")
+    st.pyplot(fig)
+
+
+
+
+# endregion
+
 # region |---| Main
 
 def run_ui() :
@@ -372,6 +400,18 @@ def run_ui() :
             display_periodics_editor()
 
         display_ponctuals_editor()
+    
+    with col_main_ui[1].container() :
+
+        # TODO input pour mettre un solde à J0
+        # TODO Afficher valeure finale
+
+        display_daily_balance()
+
+        # TODO afficher un camembert par catégorie
+
+        # TODO Mettre un bouton pop-up qui affiche le détail de la période avec toutes les dépenses ?
+
 
 # endregion
 
@@ -397,5 +437,3 @@ if __name__ == '__main__' :
 # plt.plot(balance_real["date"], balance_real["balance"])
 # plt.plot(balance_budget["date"], balance_budget["balance"])
 
-# TODO 
-# Find a way to archive the past periodics : archive the whole history + balance of each month ?
