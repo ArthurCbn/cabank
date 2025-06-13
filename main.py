@@ -87,17 +87,28 @@ if not BUDGETS_PATH.exists() :
 
 PERIODICS_PATH = USER_PATH / "periodics.csv"
 if PERIODICS_PATH.exists() :
-    PERIODICS = pd.read_csv(PERIODICS_PATH)
+    FULL_PERIODICS = pd.read_csv(PERIODICS_PATH)
+
+    periodics_in_period_mask =  (
+        ( format_datetime(FULL_PERIODICS["first"]) < st.session_state.period_end ) &
+        ( format_datetime(FULL_PERIODICS["last"])  >= st.session_state.period_start )
+    )
+
+    PERIODICS = FULL_PERIODICS[periodics_in_period_mask].reset_index(drop=True) 
+    ISOLATED_PERIODICS = FULL_PERIODICS[~periodics_in_period_mask].reset_index(drop=True) 
+
 else :
-    PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "days", "months"])
+    PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
+    ISOLATED_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
 
 # Typing
 PERIODICS["category"].astype(str)
 PERIODICS["description"] = PERIODICS["description"].fillna("").astype(str)
 PERIODICS["amount"].astype(float)
 PERIODICS["first"] = format_datetime(PERIODICS["first"])
-PERIODICS["days"].astype(int)
-PERIODICS["months"].astype(int)
+PERIODICS["last"] = format_datetime(PERIODICS["last"])
+PERIODICS["days"] = PERIODICS["days"].fillna(0).astype(int)
+PERIODICS["months"] = PERIODICS["months"].fillna(0).astype(int)
 
 if not "periodics" in st.session_state :
     st.session_state.periodics = PERIODICS
@@ -111,8 +122,8 @@ if PONCTUALS_PATH.exists() :
     FULL_PONCTUALS = pd.read_csv(PONCTUALS_PATH)
 
     ponctuals_in_period_mask =  (
-        ( pd.to_datetime(FULL_PONCTUALS["date"]) >= st.session_state.period_start ) &
-        ( pd.to_datetime(FULL_PONCTUALS["date"]) < st.session_state.period_end )
+        ( format_datetime(FULL_PONCTUALS["date"]) >= st.session_state.period_start ) &
+        ( format_datetime(FULL_PONCTUALS["date"]) < st.session_state.period_end )
     )
 
     PONCTUALS = FULL_PONCTUALS[ponctuals_in_period_mask].reset_index(drop=True) 
@@ -228,6 +239,8 @@ def display_settings() :
 
 def display_ponctuals_editor() :
 
+    st.subheader("Dépenses ponctuelles")
+
     edited_ponctuals = st.data_editor(
         PONCTUALS,
         num_rows="dynamic",
@@ -262,9 +275,79 @@ def display_ponctuals_editor() :
 
     st.session_state.ponctuals = edited_ponctuals
 
-    button_save_ponctuals = st.button("Save", key="button_save_ponctuals")
+    button_save_ponctuals = st.button("Sauvegarder", key="button_save_ponctuals")
     if button_save_ponctuals :
         combine_and_save_csv(edited_ponctuals, ISOLATED_PONCTUALS, PONCTUALS_PATH)
+
+# endregion
+
+# region |---| Periodics
+
+def display_periodics_editor() :
+
+    st.subheader("Dépenses périodiques")
+
+    edited_periodics = st.data_editor(
+        PERIODICS,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="edited_periodics",
+        column_config={
+            "category": st.column_config.SelectboxColumn(
+                "Catégorie", 
+                options=ALL_CATEGORIES, 
+                width="small",
+                required=True
+            ),
+            "description": st.column_config.TextColumn(
+                "Description", 
+                width="medium",
+                required=True,
+            ),
+            "amount": st.column_config.NumberColumn(
+                "Montant", 
+                width="small",
+                required=True,
+            ),
+            "first": st.column_config.DateColumn(
+                "Premier paiement", 
+                format="DD-MM-YYYY", 
+                width="small", 
+                default=st.session_state.period_start,
+                required=True,
+            ),
+            "last": st.column_config.DateColumn(
+                "Dernier paiement", 
+                format="DD-MM-YYYY", 
+                width="small",
+                default=( TODAY + relativedelta(years=100) ).date(),
+                required=True,
+                
+            ),
+            "days": st.column_config.NumberColumn(
+                "Jours", 
+                width="small",
+                default=0,
+                required=False,
+                step=1,
+            ),
+            "months": st.column_config.NumberColumn(
+                "Mois", 
+                width="small",
+                default=0,
+                required=False,
+                step=1,
+            ),
+        },
+        hide_index=True,
+    )
+
+    st.session_state.periodics = edited_periodics
+
+    button_save_periodics = st.button("Sauvegarder", key="button_save_periodics")
+    if button_save_periodics :
+        combine_and_save_csv(edited_periodics, ISOLATED_PERIODICS, PERIODICS_PATH)
+
 
 # endregion    
 
@@ -284,6 +367,10 @@ def run_ui() :
     col_main_ui = st.columns([7, 3])
 
     with col_main_ui[0].container() :
+
+        with st.expander("Dépenses périodiques") :
+            display_periodics_editor()
+
         display_ponctuals_editor()
 
 # endregion
