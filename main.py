@@ -353,20 +353,7 @@ def display_periodics_editor() :
 
 # region |---| Daily Balance
 
-def display_daily_balance() :
-
-    period = get_real_period(
-        period_start=st.session_state.period_start,
-        period_end=st.session_state.period_end,
-        periodics=st.session_state.periodics,
-        ponctuals=st.session_state.ponctuals
-    )
-
-    daily_balance = get_daily_balance(
-        period_start=st.session_state.period_start,
-        period_end=st.session_state.period_end,
-        aggregated_period=period
-    )
+def display_daily_balance(daily_balance: pd.DataFrame) :
 
     # TODO mettre en pointillés les jours futur + mettre en forme l'axe X avec quadrillage horizontal
     fig = plt.figure()
@@ -374,8 +361,30 @@ def display_daily_balance() :
     plt.title("Balance de la période")
     st.pyplot(fig)
 
+# endregion
 
+# region |---| Stats
 
+def display_stats(period: pd.DataFrame) :
+    
+    stats = period[["category", "amount"]].groupby(["category"]).sum()
+
+    fig = plt.figure()
+    plt.pie(
+        stats["amount"].values, 
+        labels=stats.index,
+        wedgeprops={'width': 0.4},
+        startangle=90,
+    )
+    
+    centre_circle = plt.Circle((0, 0), 0.70, fc='white')
+    fig.gca().add_artist(centre_circle)
+    
+    # TODO étiquettes de montant total par catégorie 
+    plt.title("Dépenses par catégorie")
+    plt.axis('equal')
+
+    st.pyplot(fig)
 
 # endregion
 
@@ -401,14 +410,27 @@ def run_ui() :
 
         display_ponctuals_editor()
     
+    period = get_real_period(
+        period_start=st.session_state.period_start,
+        period_end=st.session_state.period_end,
+        periodics=st.session_state.periodics,
+        ponctuals=st.session_state.ponctuals
+    )
+
+    daily_balance = get_daily_balance(
+        period_start=st.session_state.period_start,
+        period_end=st.session_state.period_end,
+        aggregated_period=period
+    )
+
     with col_main_ui[1].container() :
 
         # TODO input pour mettre un solde à J0
         # TODO Afficher valeure finale
 
-        display_daily_balance()
+        display_daily_balance(daily_balance=daily_balance)
 
-        # TODO afficher un camembert par catégorie
+        display_stats(period=period)
 
         # TODO Mettre un bouton pop-up qui affiche le détail de la période avec toutes les dépenses ?
 
