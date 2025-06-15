@@ -676,9 +676,9 @@ def run_ui() :
     with col_title[1].container(border=True) :
         display_settings()
     
-    col_main_ui = st.columns([7, 3])
+    #col_main_ui = st.columns([7, 3])
 
-    with col_main_ui[0].container() :
+    with st.container() :
 
         tab_real, tab_budget = st.tabs(["Réel", "Budget"])
 
@@ -729,8 +729,8 @@ def run_ui() :
         budget_period = None
         budget_balance = None
 
-    with col_main_ui[1].container() :
-
+    #with col_main_ui[1].container() :
+    with st.sidebar :
         # TODO Afficher valeure finale
 
         display_daily_balance(
