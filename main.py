@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 import pandas as pd
 from enum import Enum
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import streamlit as st
 from typing import Any
 import os
@@ -77,7 +78,7 @@ BUDGETS_PATH = USER_PATH / "budgets"
 if not BUDGETS_PATH.exists() :
     os.mkdir(BUDGETS_PATH)
 
-ALL_BUDGETS = [
+ALL_BUDGETS = [None] + [
     budget_folder.stem 
     for budget_folder in BUDGETS_PATH.iterdir() 
     if budget_folder.is_dir() 
@@ -416,7 +417,7 @@ def display_budget_selection() :
         options=ALL_BUDGETS,
         key="budget",
         accept_new_options=True,
-        index=( ALL_BUDGETS.index(st.session_state.budget) if st.session_state.budget in ALL_BUDGETS else None ),
+        index=ALL_BUDGETS.index(st.session_state.budget),
     )
 
 # endregion
@@ -532,7 +533,7 @@ def display_budget_periodics_editor() :
         },
         hide_index=True,
     )
-    
+
     st.session_state.budget_periodics = edited_budget_periodics
 
     button_save_budget_periodics = st.button("Sauvegarder", key="button_save_budget_periodics")
@@ -548,13 +549,56 @@ def display_budget_periodics_editor() :
 
 # region |---| Daily Balance
 
-def display_daily_balance(daily_balance: pd.DataFrame) :
+def display_daily_balance(
+        daily_balance: pd.DataFrame,
+        budget_balance: pd.DataFrame|None=None) :
+    
+    past_balance = daily_balance[daily_balance["date"] <= TODAY]
+    future_balance = daily_balance[daily_balance["date"] > TODAY]
 
-    # TODO mettre en pointillés les jours futur + mettre en forme l'axe X avec quadrillage horizontal
-    fig = plt.figure()
-    plt.plot(daily_balance["date"], daily_balance["balance"])
-    plt.title("Balance de la période")
-    st.pyplot(fig)
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=past_balance["date"], 
+        y=past_balance["balance"], 
+        mode='lines', 
+        name='Balance actuelle', 
+        line=dict(color='blue')
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=future_balance["date"], 
+        y=future_balance["balance"], 
+        mode='lines', 
+        name='Balance prévisionnelle', 
+        line=dict(color='blue', dash='dot')
+    ))
+
+    if not budget_balance is None :
+        fig.add_trace(go.Scatter(
+            x=budget_balance["date"], 
+            y=budget_balance["balance"], 
+            mode='lines', 
+            name=f'Budget {st.session_state.budget}', 
+            line=dict(color='red', dash='dash')
+        ))
+
+    fig.update_xaxes(showgrid=True)
+    fig.update_layout(
+        title="Balance de la période",
+        xaxis_title="Date",
+        yaxis_title="Balance",
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.25,
+            xanchor="center",
+            x=0.5
+        ),
+        margin=dict(b=100) 
+    )
+
+    st.plotly_chart(fig)
 
 # endregion
 
@@ -625,31 +669,38 @@ def run_ui() :
         periodics=st.session_state.periodics,
         ponctuals=st.session_state.ponctuals
     )
-    budget_period = get_budget_period(
-        period_start=st.session_state.period_start,
-        period_end=st.session_state.period_end,
-        periodics=st.session_state.periodics,
-        budget_periodics=st.session_state.budget_periodics,
-        budget_ponctuals=st.session_state.budget_ponctuals
-    )
-
     daily_balance = get_daily_balance(
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
         aggregated_period=period
     )
-    budget_balance = get_daily_balance(
-        period_start=st.session_state.period_start,
-        period_end=st.session_state.period_end,
-        aggregated_period=budget_period,
-    )
+    
+
+    if not st.session_state.budget is None :
+        budget_period = get_budget_period(
+            period_start=st.session_state.period_start,
+            period_end=st.session_state.period_end,
+            periodics=st.session_state.periodics,
+            budget_periodics=st.session_state.budget_periodics,
+            budget_ponctuals=st.session_state.budget_ponctuals
+        )
+        budget_balance = get_daily_balance(
+            period_start=st.session_state.period_start,
+            period_end=st.session_state.period_end,
+            aggregated_period=budget_period,
+        )
+    else :
+        budget_balance = None
 
     with col_main_ui[1].container() :
 
         # TODO input pour mettre un solde à J0
         # TODO Afficher valeure finale
 
-        display_daily_balance(daily_balance=daily_balance)
+        display_daily_balance(
+            daily_balance=daily_balance,
+            budget_balance=budget_balance,    
+        )
 
 
         # TODO Mettre un bouton pop-up qui affiche le détail de la période avec toutes les dépenses ?
