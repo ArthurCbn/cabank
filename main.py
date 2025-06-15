@@ -532,7 +532,7 @@ def display_budget_periodics_editor() :
         },
         hide_index=True,
     )
-    edited_budget_periodics["amount"] *= -1
+    
     st.session_state.budget_periodics = edited_budget_periodics
 
     button_save_budget_periodics = st.button("Sauvegarder", key="button_save_budget_periodics")
@@ -625,11 +625,23 @@ def run_ui() :
         periodics=st.session_state.periodics,
         ponctuals=st.session_state.ponctuals
     )
+    budget_period = get_budget_period(
+        period_start=st.session_state.period_start,
+        period_end=st.session_state.period_end,
+        periodics=st.session_state.periodics,
+        budget_periodics=st.session_state.budget_periodics,
+        budget_ponctuals=st.session_state.budget_ponctuals
+    )
 
     daily_balance = get_daily_balance(
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
         aggregated_period=period
+    )
+    budget_balance = get_daily_balance(
+        period_start=st.session_state.period_start,
+        period_end=st.session_state.period_end,
+        aggregated_period=budget_period,
     )
 
     with col_main_ui[1].container() :
@@ -639,7 +651,6 @@ def run_ui() :
 
         display_daily_balance(daily_balance=daily_balance)
 
-        # display_stats(period=period) # TODO handle negative/positive...
 
         # TODO Mettre un bouton pop-up qui affiche le détail de la période avec toutes les dépenses ?
 

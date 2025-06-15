@@ -92,10 +92,12 @@ def get_budget_period(
         period_start: datetime,
         period_end: datetime,
         periodics: pd.DataFrame,
-        periodics_budget: pd.DataFrame,
-        ponctuals_budget: pd.DataFrame) -> pd.DataFrame :
+        budget_periodics: pd.DataFrame,
+        budget_ponctuals: pd.DataFrame) -> pd.DataFrame :
     
-    return get_aggregated_period(period_start, period_end, pd.concat([periodics, periodics_budget]), ponctuals_budget)
+    budget_periodics["amount"] *= -1
+    
+    return get_aggregated_period(period_start, period_end, pd.concat([periodics, budget_periodics]), budget_ponctuals)
 
 # endregion
 
