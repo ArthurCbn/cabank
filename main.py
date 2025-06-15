@@ -23,9 +23,23 @@ from src.balance import (
 
 # region INIT
 
-# region |---| Period
+# region |---| Config TODO
 
-FIRST_DAY = 6 # TODO config file
+# TODO Offset à Jour choisi
+
+ALL_CATEGORIES = {
+    "Logement": "red", 
+    "Nourriture": "green", 
+    "Salaire": "blue"
+}
+
+MONEY_FORMAT = "dollar"
+
+FIRST_DAY = 6
+
+# endregion
+
+# region |---| Period
 
 TODAY = datetime.now()
 
@@ -211,13 +225,6 @@ if not "budget_ponctuals" in st.session_state :
 
 # endregion
 
-# region |---| Config
-
-ALL_CATEGORIES = ["Logement", "Nourriture", "Salaire"]
-MONEY_FORMAT = "dollar" # TODO config
-
-# endregion
-
 # endregion
 
 
@@ -301,7 +308,7 @@ def display_real_ponctuals_editor() :
             ),
             "category": st.column_config.SelectboxColumn(
                 "Catégorie", 
-                options=ALL_CATEGORIES, 
+                options=ALL_CATEGORIES.keys(), 
                 width="small",
                 required=True
             ),
@@ -345,7 +352,7 @@ def display_real_periodics_editor() :
         column_config={
             "category": st.column_config.SelectboxColumn(
                 "Catégorie", 
-                options=ALL_CATEGORIES, 
+                options=ALL_CATEGORIES.keys(), 
                 width="small",
                 required=True
             ),
@@ -443,7 +450,7 @@ def display_budget_ponctuals_editor() :
             ),
             "category": st.column_config.SelectboxColumn(
                 "Catégorie", 
-                options=ALL_CATEGORIES, 
+                options=ALL_CATEGORIES.keys(), 
                 width="small",
                 required=True
             ),
@@ -486,7 +493,7 @@ def display_budget_periodics_editor() :
         column_config={
             "category": st.column_config.SelectboxColumn(
                 "Catégorie", 
-                options=ALL_CATEGORIES, 
+                options=ALL_CATEGORIES.keys(), 
                 width="small",
                 required=True
             ),
@@ -563,7 +570,7 @@ def display_daily_balance(
         y=past_balance["balance"], 
         mode='lines', 
         name='Balance actuelle', 
-        line=dict(color='blue')
+        line=dict(color='black')
     ))
 
     fig.add_trace(go.Scatter(
@@ -571,7 +578,7 @@ def display_daily_balance(
         y=future_balance["balance"], 
         mode='lines', 
         name='Balance prévisionnelle', 
-        line=dict(color='blue', dash='dot')
+        line=dict(color='black', dash='dot')
     ))
 
     if not budget_balance is None :
@@ -580,7 +587,7 @@ def display_daily_balance(
             y=budget_balance["balance"], 
             mode='lines', 
             name=f'Budget {st.session_state.budget}', 
-            line=dict(color='red', dash='dash')
+            line=dict(color='gray', dash='dash')
         ))
 
     fig.update_xaxes(showgrid=True)
@@ -608,53 +615,52 @@ def display_stats(
         period: pd.DataFrame,
         budget_period: pd.DataFrame|None=None) :
 
-    fig = go.Figure()
+    colors = [c for _, c in sorted(ALL_CATEGORIES.items())]
 
     spent_real = period[period["amount"] < 0]
-    spent_real["amount"] *= -1
-    spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum()
+    spent_real["amount"] = spent_real["amount"].apply(lambda x : x*-1)
+    spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
-    fig.add_trace(go.Pie(
-        labels=spent_real_stats.index,
-        values=spent_real_stats["amount"],
-        hole=0.7,
-        direction='clockwise',
-        sort=False,
-        textinfo='label',
-        domain={'x': [0, 1], 'y': [0, 1]},
-        name='Outer',
-        marker=dict(line=dict(color='#000000', width=1)),
-    ))
+    fig = go.Figure()
 
-    # Budget
     if not budget_period is None :
         spent_budget = budget_period[budget_period["amount"] < 0]
-        spent_budget["amount"] *= -1
-        spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum()
+        spent_budget["amount"] = spent_budget["amount"].apply(lambda x : x*-1)
+        spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
-
-        fig.add_trace(go.Pie(
-            labels=spent_budget_stats.index,
-            values=spent_budget_stats["amount"],
-            hole=0.5,
-            direction='clockwise',
-            sort=False,
-            textinfo='label',
-            domain={'x': [0.2, 0.8], 'y': [0.2, 0.8]},
-            name=f'Budget {st.session_state.budget}',
-            marker=dict(line=dict(color='#000000', width=1)),
+        fig.add_trace(go.Bar(
+            y=spent_budget_stats.index,
+            x=spent_budget_stats["amount"],
+            name=f"Budget {st.session_state.budget}",
+            orientation='h',
+            marker=dict(color='lightgray'),
+            width=0.6,
+            hovertemplate=f'Budget {st.session_state.budget}'+': %{x}<extra></extra>',
         ))
 
-    # Superposer les deux donuts
-    fig.update_traces(textposition='inside', textfont_size=12)
+    fig.add_trace(go.Bar(
+        y=spent_real_stats.index,
+        x=spent_real_stats["amount"],
+        name='Dépenses réelles',
+        orientation='h',
+        marker=dict(color=colors),
+        width=0.3,
+        hovertemplate='Réel: %{x}<extra></extra>',
+    ))
+
     fig.update_layout(
-        title_text='Statistiques par catégorie',
-        showlegend=True,
+        barmode='overlay',
+        title=f'Dépenses réelles vs Budget {st.session_state.budget}',
+        xaxis_title='Montant',
+        yaxis_title='Catégorie',
+        height=400,
+        showlegend=False,
     )
 
-    # Affichage dans Streamlit
     st.plotly_chart(fig)
     
+    # TODO Donut
+
 # endregion
 
 # region |---| Main
@@ -725,7 +731,6 @@ def run_ui() :
 
     with col_main_ui[1].container() :
 
-        # TODO input pour mettre un solde à J0
         # TODO Afficher valeure finale
 
         display_daily_balance(
