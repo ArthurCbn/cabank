@@ -71,8 +71,11 @@ def get_aggregated_period(
         ponctuals: pd.DataFrame) -> pd.DataFrame :
 
     period_items = ponctuals[ponctuals.apply(lambda row: period_start <= row["date"] < period_end, axis=1)]
-    period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
+    period_items["amount"] *= -1
 
+    period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
+    
+    # TODO disable warning
     return pd.concat([period_items, period_periodics])
 
 

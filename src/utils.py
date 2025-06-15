@@ -19,11 +19,11 @@ def format_datetime(serie: pd.Series) -> pd.Series :
 
 def combine_and_save_csv(
         modified_df: pd.DataFrame,
-        isolated_df: pd.DataFrame,
-        path: Path) :
+        path: Path,
+        isolated_df: pd.DataFrame|None=None) :
     
     # Avoid useless warning
-    if len(isolated_df) == 0 :
+    if ( isolated_df is None ) or ( len(isolated_df) == 0 ) :
         modified_df.to_csv(path, index=False)
         return
 

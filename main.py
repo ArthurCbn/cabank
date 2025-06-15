@@ -73,11 +73,29 @@ if not USER_PATH.exists() :
 
 # region |---| Budget
 
-BUDGET = None # TODO
-
 BUDGETS_PATH = USER_PATH / "budgets"
 if not BUDGETS_PATH.exists() :
     os.mkdir(BUDGETS_PATH)
+
+ALL_BUDGETS = [
+    budget_folder.stem 
+    for budget_folder in BUDGETS_PATH.iterdir() 
+    if budget_folder.is_dir() 
+]
+
+if not "budget" in st.session_state :
+    st.session_state.budget = None
+
+if not st.session_state.budget is None :
+
+    CURRENT_BUDGET_PATH = BUDGETS_PATH / st.session_state.budget
+    if not CURRENT_BUDGET_PATH.exists() :
+        os.mkdir(CURRENT_BUDGET_PATH)
+        ALL_BUDGETS.append(st.session_state.budget)
+
+else :
+
+    CURRENT_BUDGET_PATH = None
 
 # endregion
 
@@ -144,20 +162,58 @@ if not "ponctuals" in st.session_state :
 
 # endregion
 
+# region |---|---| Budget
+
+# region |---|---|---| Periodics
+
+BUDGET_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
+
+if not CURRENT_BUDGET_PATH is None :
+    BUDGET_PERIODICS_PATH = CURRENT_BUDGET_PATH / "periodics.csv"
+    if BUDGET_PERIODICS_PATH.exists() :
+        BUDGET_PERIODICS = pd.read_csv(BUDGET_PERIODICS_PATH)
+
+# Typing
+BUDGET_PERIODICS["category"].astype(str)
+BUDGET_PERIODICS["description"] = BUDGET_PERIODICS["description"].fillna("").astype(str)
+BUDGET_PERIODICS["amount"].astype(float)
+BUDGET_PERIODICS["first"] = format_datetime(BUDGET_PERIODICS["first"])
+BUDGET_PERIODICS["last"] = format_datetime(BUDGET_PERIODICS["last"])
+BUDGET_PERIODICS["days"] = BUDGET_PERIODICS["days"].fillna(0).astype(int)
+BUDGET_PERIODICS["months"] = BUDGET_PERIODICS["months"].fillna(0).astype(int)
+
+if not "budget_periodics" in st.session_state :
+    st.session_state.budget_periodics = BUDGET_PERIODICS
+
 # endregion
 
-# region |---| Categories
+# region |---|---|---| Ponctuals
 
-class Category(str, Enum) :
-    house="Logement"
-    eat="Nourriture"
-    pay="Salaire"
+BUDGET_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
+if not CURRENT_BUDGET_PATH is None :
+    BUDGET_PONCTUALS_PATH = CURRENT_BUDGET_PATH / "ponctuals.csv"
+    if BUDGET_PONCTUALS_PATH.exists() :
+        BUDGET_PONCTUALS = pd.read_csv(BUDGET_PONCTUALS_PATH)
 
+# Typing
+BUDGET_PONCTUALS["category"].astype(str)
+BUDGET_PONCTUALS["description"] = BUDGET_PONCTUALS["description"].fillna("").astype(str)
+BUDGET_PONCTUALS["amount"].astype(float)
+BUDGET_PONCTUALS["date"] = format_datetime(BUDGET_PONCTUALS["date"])
 
-    def __str__(self):
-        return self.value
+if not "budget_ponctuals" in st.session_state :
+    st.session_state.budget_ponctuals = BUDGET_PONCTUALS
 
-ALL_CATEGORIES = [Category.house, Category.eat, Category.pay]
+# endregion
+
+# endregion
+
+# endregion
+
+# region |---| Config
+
+ALL_CATEGORIES = ["Logement", "Nourriture", "Salaire"]
+MONEY_FORMAT = "dollar" # TODO config
 
 # endregion
 
@@ -170,7 +226,7 @@ ALL_CATEGORIES = [Category.house, Category.eat, Category.pay]
 
 def display_settings() :
     
-    col_settings = st.columns([1, 1, 1, 2, 1], vertical_alignment="bottom")
+    col_settings = st.columns([1, 1, 2, 1], vertical_alignment="bottom")
 
 # region |---|---| User
 
@@ -178,21 +234,9 @@ def display_settings() :
         "Sélection du compte",
         options=ALL_USERS,
         key="user",
+        accept_new_options=True,
+        index=( ALL_USERS.index(st.session_state.user) if st.session_state.user in ALL_USERS else None ),
     )
-
-    with col_settings[1].popover("Nouveau compte", use_container_width=True) :
-
-        with st.form(key="new_user") :
-            new_user = st.text_input(
-                "Nouveau compte",
-                key="new_user",
-            )
-
-            new_user_button = st.form_submit_button("Créer")
-            if new_user_button :
-                # TODO message de confirmation
-                os.mkdir(DATA_PATH / new_user)
-                st.rerun()
 
 # endregion
 
@@ -205,7 +249,7 @@ def display_settings() :
         st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon)
 
 
-    input_period_start = col_settings[2].date_input(
+    input_period_start = col_settings[1].date_input(
         "Début de période",
         format="DD/MM/YYYY",
         key="input_period_start",
@@ -213,7 +257,7 @@ def display_settings() :
         on_change=_update_period
     )
     
-    input_horizon = col_settings[3].slider(
+    input_horizon = col_settings[2].slider(
         "Horizon (mois)",
         min_value=1,
         max_value=12,
@@ -227,7 +271,7 @@ def display_settings() :
 
 # region |---|---| Config
 
-    with col_settings[4].popover("Configuration", use_container_width=True) :
+    with col_settings[3].popover("Configuration", use_container_width=True) :
         ...
         # TODO config
 
@@ -235,9 +279,9 @@ def display_settings() :
 
 # endregion
 
-# region |---| Ponctuals
+# region |---| Real Ponctuals
 
-def display_ponctuals_editor() :
+def display_real_ponctuals_editor() :
 
     st.subheader("Dépenses ponctuelles")
 
@@ -268,6 +312,7 @@ def display_ponctuals_editor() :
                 "Montant", 
                 width="small",
                 required=True,
+                format=MONEY_FORMAT,
             ),
         },
         hide_index=True,
@@ -277,15 +322,19 @@ def display_ponctuals_editor() :
 
     button_save_ponctuals = st.button("Sauvegarder", key="button_save_ponctuals")
     if button_save_ponctuals :
-        combine_and_save_csv(edited_ponctuals, ISOLATED_PONCTUALS, PONCTUALS_PATH)
+        combine_and_save_csv(
+            modified_df=edited_ponctuals, 
+            isolated_df=ISOLATED_PONCTUALS, 
+            path=PONCTUALS_PATH
+        )
 
 # endregion
 
-# region |---| Periodics
+# region |---| Real Periodics
 
-def display_periodics_editor() :
+def display_real_periodics_editor() :
 
-    st.subheader("Dépenses périodiques")
+    st.subheader("Virements/Prélèvements périodiques")
 
     edited_periodics = st.data_editor(
         PERIODICS,
@@ -308,6 +357,7 @@ def display_periodics_editor() :
                 "Montant", 
                 width="small",
                 required=True,
+                format=MONEY_FORMAT,
             ),
             "first": st.column_config.DateColumn(
                 "Premier paiement", 
@@ -346,10 +396,155 @@ def display_periodics_editor() :
 
     button_save_periodics = st.button("Sauvegarder", key="button_save_periodics")
     if button_save_periodics :
-        combine_and_save_csv(edited_periodics, ISOLATED_PERIODICS, PERIODICS_PATH)
+        combine_and_save_csv(
+            modified_df=edited_periodics, 
+            isolated_df=ISOLATED_PERIODICS, 
+            path=PERIODICS_PATH
+        )
 
 
 # endregion    
+
+# region |---| Budget selection
+
+def display_budget_selection() :
+
+    col_budget_selection = st.columns(2, vertical_alignment="bottom")
+
+    budget = col_budget_selection[0].selectbox(
+        "Sélection du budget",
+        options=ALL_BUDGETS,
+        key="budget",
+        accept_new_options=True,
+        index=( ALL_BUDGETS.index(st.session_state.budget) if st.session_state.budget in ALL_BUDGETS else None ),
+    )
+
+# endregion
+
+# region |---| Budget Ponctuals
+
+def display_budget_ponctuals_editor() :
+
+    st.subheader("Dépenses ponctuelles budgettisées")
+
+    edited_budget_ponctuals = st.data_editor(
+        BUDGET_PONCTUALS,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="edited_budget_ponctuals",
+        column_config={
+            "date": st.column_config.DateColumn(
+                "Date", 
+                format="DD-MM-YYYY", 
+                width="small", 
+                default=st.session_state.period_start,
+                required=True,
+            ),
+            "category": st.column_config.SelectboxColumn(
+                "Catégorie", 
+                options=ALL_CATEGORIES, 
+                width="small",
+                required=True
+            ),
+            "description": st.column_config.TextColumn(
+                "Description", 
+                width="large",
+            ),
+            "amount": st.column_config.NumberColumn(
+                "Montant", 
+                width="small",
+                required=True,
+                format=MONEY_FORMAT,
+            ),
+        },
+        hide_index=True,
+    )
+
+    st.session_state.budget_ponctuals = edited_budget_ponctuals
+
+    button_save_budget_ponctuals = st.button("Sauvegarder", key="button_save_budget_ponctuals")
+    if button_save_budget_ponctuals :
+        combine_and_save_csv(
+            modified_df=edited_budget_ponctuals, 
+            path=BUDGET_PERIODICS_PATH,
+        )
+
+# endregion
+
+# region |---| Budget Periodics
+
+def display_budget_periodics_editor() :
+
+    st.subheader("Budget")
+
+    edited_budget_periodics = st.data_editor(
+        BUDGET_PERIODICS,
+        num_rows="dynamic",
+        use_container_width=True,
+        key="edited_budget_periodics",
+        column_config={
+            "category": st.column_config.SelectboxColumn(
+                "Catégorie", 
+                options=ALL_CATEGORIES, 
+                width="small",
+                required=True
+            ),
+            "description": st.column_config.TextColumn(
+                "Description", 
+                width="medium",
+                required=True,
+            ),
+            "amount": st.column_config.NumberColumn(
+                "Montant", 
+                width="small",
+                required=True,
+                format=MONEY_FORMAT,
+            ),
+            "first": st.column_config.DateColumn(
+                "Premier paiement", 
+                format="DD-MM-YYYY", 
+                width="small", 
+                default=st.session_state.period_start,
+                required=True,
+            ),
+            "last": st.column_config.DateColumn(
+                "Dernier paiement", 
+                format="DD-MM-YYYY", 
+                width="small",
+                default=( TODAY + relativedelta(years=100) ).date(),
+                required=True,
+                
+            ),
+            "days": st.column_config.NumberColumn(
+                "Jours", 
+                width="small",
+                default=0,
+                required=False,
+                step=1,
+            ),
+            "months": st.column_config.NumberColumn(
+                "Mois", 
+                width="small",
+                default=0,
+                required=False,
+                step=1,
+            ),
+        },
+        hide_index=True,
+    )
+    edited_budget_periodics["amount"] *= -1
+    st.session_state.budget_periodics = edited_budget_periodics
+
+    button_save_budget_periodics = st.button("Sauvegarder", key="button_save_budget_periodics")
+    if button_save_budget_periodics :
+        combine_and_save_csv(
+            modified_df=edited_budget_periodics, 
+            isolated_df=None, 
+            path=BUDGET_PERIODICS_PATH
+        )
+
+
+# endregion
 
 # region |---| Daily Balance
 
@@ -405,10 +600,24 @@ def run_ui() :
 
     with col_main_ui[0].container() :
 
-        with st.expander("Dépenses périodiques") :
-            display_periodics_editor()
+        tab_real, tab_budget = st.tabs(["Réel", "Budget"])
 
-        display_ponctuals_editor()
+        with tab_real :
+            with st.expander("Virements/Prélèvements périodiques") :
+                display_real_periodics_editor()
+
+            display_real_ponctuals_editor()
+        
+        with tab_budget :
+
+            display_budget_selection()
+            
+            if not st.session_state.budget is None :
+
+                with st.expander("Dépenses ponctuelles budgettisées") :
+                    display_budget_ponctuals_editor()
+
+                display_budget_periodics_editor()
     
     period = get_real_period(
         period_start=st.session_state.period_start,
@@ -430,7 +639,7 @@ def run_ui() :
 
         display_daily_balance(daily_balance=daily_balance)
 
-        display_stats(period=period)
+        # display_stats(period=period) # TODO handle negative/positive...
 
         # TODO Mettre un bouton pop-up qui affiche le détail de la période avec toutes les dépenses ?
 
