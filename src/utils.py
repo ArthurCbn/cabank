@@ -17,6 +17,19 @@ def format_datetime(serie: pd.Series) -> pd.Series :
     return pd.to_datetime(serie, format="%Y-%m-%d")
 
 
+def safe_concat(
+        df1: pd.DataFrame,
+        df2: pd.DataFrame) -> pd.DataFrame :
+    
+    if len(df1) == 0 :
+        return df2
+    
+    if len(df2) == 0 :
+        return df1
+    
+    return pd.concat([df1, df2])
+
+
 def combine_and_save_csv(
         modified_df: pd.DataFrame,
         path: Path,
@@ -27,5 +40,5 @@ def combine_and_save_csv(
         modified_df.to_csv(path, index=False)
         return
 
-    reunited_df = pd.concat([modified_df, isolated_df])
+    reunited_df = safe_concat(modified_df, isolated_df)
     reunited_df.to_csv(path, index=False)

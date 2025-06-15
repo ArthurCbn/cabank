@@ -1,7 +1,10 @@
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import pandas as pd
-from .utils import safe_get
+from .utils import (
+    safe_get,
+    safe_concat,
+)
 
 
 # region PERIODICS
@@ -76,7 +79,7 @@ def get_aggregated_period(
     period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
     
     # TODO disable warning
-    return pd.concat([period_items, period_periodics])
+    return safe_concat(period_items, period_periodics)
 
 
 def get_real_period(
@@ -96,8 +99,8 @@ def get_budget_period(
         budget_ponctuals: pd.DataFrame) -> pd.DataFrame :
     
     budget_periodics["amount"] *= -1
-    
-    return get_aggregated_period(period_start, period_end, pd.concat([periodics, budget_periodics]), budget_ponctuals)
+
+    return get_aggregated_period(period_start, period_end, safe_concat(periodics, budget_periodics), budget_ponctuals)
 
 # endregion
 
