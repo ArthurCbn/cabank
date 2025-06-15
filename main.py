@@ -604,27 +604,57 @@ def display_daily_balance(
 
 # region |---| Stats
 
-def display_stats(period: pd.DataFrame) :
-    
-    stats = period[["category", "amount"]].groupby(["category"]).sum()
+def display_stats(
+        period: pd.DataFrame,
+        budget_period: pd.DataFrame|None=None) :
 
-    fig = plt.figure()
-    plt.pie(
-        stats["amount"].values, 
-        labels=stats.index,
-        wedgeprops={'width': 0.4},
-        startangle=90,
+    fig = go.Figure()
+
+    spent_real = period[period["amount"] < 0]
+    spent_real["amount"] *= -1
+    spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum()
+
+    fig.add_trace(go.Pie(
+        labels=spent_real_stats.index,
+        values=spent_real_stats["amount"],
+        hole=0.7,
+        direction='clockwise',
+        sort=False,
+        textinfo='label',
+        domain={'x': [0, 1], 'y': [0, 1]},
+        name='Outer',
+        marker=dict(line=dict(color='#000000', width=1)),
+    ))
+
+    # Budget
+    if not budget_period is None :
+        spent_budget = budget_period[budget_period["amount"] < 0]
+        spent_budget["amount"] *= -1
+        spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum()
+
+
+        fig.add_trace(go.Pie(
+            labels=spent_budget_stats.index,
+            values=spent_budget_stats["amount"],
+            hole=0.5,
+            direction='clockwise',
+            sort=False,
+            textinfo='label',
+            domain={'x': [0.2, 0.8], 'y': [0.2, 0.8]},
+            name=f'Budget {st.session_state.budget}',
+            marker=dict(line=dict(color='#000000', width=1)),
+        ))
+
+    # Superposer les deux donuts
+    fig.update_traces(textposition='inside', textfont_size=12)
+    fig.update_layout(
+        title_text='Statistiques par catégorie',
+        showlegend=True,
     )
-    
-    centre_circle = plt.Circle((0, 0), 0.70, fc='white')
-    fig.gca().add_artist(centre_circle)
-    
-    # TODO étiquettes de montant total par catégorie 
-    plt.title("Dépenses par catégorie")
-    plt.axis('equal')
 
-    st.pyplot(fig)
-
+    # Affichage dans Streamlit
+    st.plotly_chart(fig)
+    
 # endregion
 
 # region |---| Main
@@ -690,6 +720,7 @@ def run_ui() :
             aggregated_period=budget_period,
         )
     else :
+        budget_period = None
         budget_balance = None
 
     with col_main_ui[1].container() :
@@ -700,6 +731,10 @@ def run_ui() :
         display_daily_balance(
             daily_balance=daily_balance,
             budget_balance=budget_balance,    
+        )
+        display_stats(
+            period=period,
+            budget_period=budget_period,
         )
 
 
