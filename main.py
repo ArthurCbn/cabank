@@ -19,13 +19,12 @@ from src.balance import (
     get_real_period,
     get_budget_period,
     get_daily_balance,
+    get_offset,
 )
 
 # region INIT
 
 # region |---| Config TODO
-
-# TODO Offset à Jour choisi
 
 ALL_CATEGORIES = {
     "Logement": "red", 
@@ -36,6 +35,12 @@ ALL_CATEGORIES = {
 MONEY_FORMAT = "dollar"
 
 FIRST_DAY = 6
+
+if "ref_day" not in st.session_state :
+    st.session_state.ref_day = None
+
+if "ref_balance" not in st.session_state :
+    st.session_state.ref_balance = None
 
 # endregion
 
@@ -234,7 +239,7 @@ if not "budget_ponctuals" in st.session_state :
 
 def display_settings() :
     
-    col_settings = st.columns([1, 1, 2, 1], vertical_alignment="bottom")
+    col_settings = st.columns([1, 1, 2, 2], vertical_alignment="bottom")
 
 # region |---|---| User
 
@@ -280,8 +285,22 @@ def display_settings() :
 # region |---|---| Config
 
     with col_settings[3].popover("Configuration", use_container_width=True) :
-        ...
-        # TODO config
+        
+        with st.form("ref_form") : 
+            
+            ref_day_input = st.date_input(
+                "Jour de référence",
+                format="DD-MM-YYYY",
+                key="ref_day_input",
+                value=st.session_state.ref_day
+            )
+            ref_balance_input = st.number_input("Solde") # TODO better widget
+
+            ref_submit_button  = st.form_submit_button("Valider")
+
+            if ref_submit_button :
+                st.session_state.ref_day = datetime.combine(ref_day_input, time.min)
+                st.session_state.ref_balance = ref_balance_input
 
 # endregion
 
@@ -618,14 +637,14 @@ def display_stats(
     colors = [c for _, c in sorted(ALL_CATEGORIES.items())]
 
     spent_real = period[period["amount"] < 0]
-    spent_real["amount"] = spent_real["amount"].apply(lambda x : x*-1)
+    spent_real["amount"] = spent_real["amount"].apply(lambda x : x*-1) # TODO warning ??
     spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
     fig = go.Figure()
 
     if not budget_period is None :
         spent_budget = budget_period[budget_period["amount"] < 0]
-        spent_budget["amount"] = spent_budget["amount"].apply(lambda x : x*-1)
+        spent_budget["amount"] = spent_budget["amount"].apply(lambda x : x*-1) # TODO warning ??
         spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
         fig.add_trace(go.Bar(
@@ -699,6 +718,16 @@ def run_ui() :
 
                 display_budget_periodics_editor()
     
+    offset = 0.
+    if not st.session_state.ref_balance is None :
+        offset = get_offset(
+            ref_day=st.session_state.ref_day,
+            ref_balance=st.session_state.ref_balance,
+            target_day=st.session_state.period_start,
+            periodics=st.session_state.periodics,
+            ponctuals=st.session_state.ponctuals
+        )
+
     period = get_real_period(
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
@@ -708,9 +737,9 @@ def run_ui() :
     daily_balance = get_daily_balance(
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
-        aggregated_period=period
+        aggregated_period=period,
+        start_offset=offset
     )
-    
 
     if not st.session_state.budget is None :
         budget_period = get_budget_period(
@@ -724,6 +753,7 @@ def run_ui() :
             period_start=st.session_state.period_start,
             period_end=st.session_state.period_end,
             aggregated_period=budget_period,
+            start_offset=offset
         )
     else :
         budget_period = None

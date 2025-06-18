@@ -110,18 +110,54 @@ def get_budget_period(
 def get_daily_balance(
         period_start: datetime,
         period_end: datetime,
-        aggregated_period: pd.DataFrame) -> pd.DataFrame :
+        aggregated_period: pd.DataFrame,
+        start_offset: float=0.) -> pd.DataFrame :
 
     one_day = relativedelta(days=1)
     daily_balance = pd.DataFrame(columns=["date", "balance"])
 
     day = period_start
     while day < period_end :
-        balance = aggregated_period[aggregated_period["date"] <= day]["amount"].sum()
+        balance = aggregated_period[aggregated_period["date"] <= day]["amount"].sum() + start_offset
         daily_balance.loc[len(daily_balance)] = [day, balance]
         
         day+=one_day
     
     return daily_balance
+
+# endregion
+
+
+# region OFFSET
+
+def get_offset(
+        ref_day: datetime,
+        ref_balance: float,
+        target_day: datetime,
+        periodics: pd.DataFrame,
+        ponctuals: pd.DataFrame) -> float :
+    
+    ref_period_start = min(ref_day, target_day)
+    ref_period_end = max(ref_day, target_day) + relativedelta(days=1)
+
+    past_period = get_real_period(
+        period_start=ref_period_start,
+        period_end=ref_period_end,
+        periodics=periodics,
+        ponctuals=ponctuals,
+    )
+
+    past_balance = get_daily_balance(
+        period_start=ref_period_start,
+        period_end=ref_period_end,
+        aggregated_period=past_period,
+    )
+
+    ref_day_balance = past_balance[past_balance["date"] == ref_day]["balance"].iloc[0]
+    target_day_balance = past_balance[past_balance["date"] == target_day]["balance"].iloc[0]
+    
+    offset = target_day_balance + ( ref_balance - ref_day_balance )
+
+    return offset
 
 # endregion
