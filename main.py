@@ -24,45 +24,6 @@ from src.balance import (
 
 # region INIT
 
-# region |---| Config TODO
-
-ALL_CATEGORIES = {
-    "Logement": "red", 
-    "Nourriture": "green", 
-    "Salaire": "blue"
-}
-
-MONEY_FORMAT = "dollar"
-
-FIRST_DAY = 6
-
-if "ref_day" not in st.session_state :
-    st.session_state.ref_day = None
-
-if "ref_balance" not in st.session_state :
-    st.session_state.ref_balance = None
-
-# endregion
-
-# region |---| Period
-
-TODAY = datetime.now()
-
-if "horizon" not in st.session_state :
-    st.session_state.horizon = 1
-
-if "period_start" not in st.session_state :
-    month = datetime.strptime(f"{FIRST_DAY}/{TODAY.month}/{TODAY.year}", "%d/%m/%Y")
-    
-    if TODAY.day < FIRST_DAY :
-        st.session_state.period_start = month - relativedelta(month=st.session_state.horizon)
-    else :   
-        st.session_state.period_start = month
-
-st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon) 
-
-# endregion
-
 # region |---| Root
 
 ROOT_PATH = Path(__file__).absolute().parent
@@ -88,6 +49,50 @@ USER_PATH = DATA_PATH / st.session_state.user
 if not USER_PATH.exists() :
     os.mkdir(USER_PATH)
     ALL_USERS.append(st.session_state.user)
+
+# endregion
+
+# region |---| Config TODO
+
+ALL_CATEGORIES = {
+    "Logement": "red", 
+    "Nourriture": "green", 
+    "Salaire": "blue"
+}
+
+MONEY_FORMAT = "dollar"
+
+FIRST_DAY = 6
+
+# endregion
+
+# region |---| Offset
+
+# TODO load from config
+if "ref_day" not in st.session_state :
+    st.session_state.ref_day = None
+
+if "ref_balance" not in st.session_state :
+    st.session_state.ref_balance = None
+
+# endregion
+
+# region |---| Period
+
+TODAY = datetime.now()
+
+if "horizon" not in st.session_state :
+    st.session_state.horizon = 1
+
+if "period_start" not in st.session_state :
+    month = datetime.strptime(f"{FIRST_DAY}/{TODAY.month}/{TODAY.year}", "%d/%m/%Y")
+    
+    if TODAY.day < FIRST_DAY :
+        st.session_state.period_start = month - relativedelta(month=st.session_state.horizon)
+    else :   
+        st.session_state.period_start = month
+
+st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon) 
 
 # endregion
 
@@ -235,16 +240,18 @@ if not "budget_ponctuals" in st.session_state :
 
 # region UI
 
-# region |---| Settings
+# region |---| Header
+
+# region |---|---| Settings
 
 def display_settings() :
-    
-    col_settings = st.columns([1, 1, 2, 2], vertical_alignment="bottom")
 
-# region |---|---| User
+    col_settings = st.columns([1, 1, 2], vertical_alignment="bottom")
+
+# region |---|---|---| User
 
     user = col_settings[0].selectbox(
-        "Sélection du compte",
+        "Compte",
         options=ALL_USERS,
         key="user",
         accept_new_options=True,
@@ -253,7 +260,7 @@ def display_settings() :
 
 # endregion
 
-# region |---|---| Period
+# region |---|---|---| Period
 
     def _update_period() :
         st.session_state.period_start = datetime.combine(st.session_state.input_period_start, time.min)
@@ -282,31 +289,49 @@ def display_settings() :
 
 # endregion
 
+# endregion
+
+# region |---|---| Offset
+
+def display_offset() :
+
+    with st.form("ref_form", border=False) :
+
+        col_ref_form  = st.columns([2, 2, 1], vertical_alignment="bottom")
+
+        ref_day_input = col_ref_form[0].date_input(
+            "Jour de référence",
+            format="DD-MM-YYYY",
+            key="ref_day_input",
+            value=st.session_state.ref_day
+        )
+        ref_balance_input = col_ref_form[1].number_input("Solde") # TODO better widget
+
+        ref_submit_button  = col_ref_form[2].form_submit_button(
+            "Valider", 
+            use_container_width=True
+        )
+
+        if ref_submit_button :
+            # TODO save in config file
+            st.session_state.ref_day = datetime.combine(ref_day_input, time.min)
+            st.session_state.ref_balance = ref_balance_input
+
+# endregion
+
 # region |---|---| Config
 
-    with col_settings[3].popover("Configuration", use_container_width=True) :
-        
-        with st.form("ref_form") : 
-            
-            ref_day_input = st.date_input(
-                "Jour de référence",
-                format="DD-MM-YYYY",
-                key="ref_day_input",
-                value=st.session_state.ref_day
-            )
-            ref_balance_input = st.number_input("Solde") # TODO better widget
-
-            ref_submit_button  = st.form_submit_button("Valider")
-
-            if ref_submit_button :
-                st.session_state.ref_day = datetime.combine(ref_day_input, time.min)
-                st.session_state.ref_balance = ref_balance_input
+def display_config() :
+    ...
+    # TODO
 
 # endregion
 
 # endregion
 
-# region |---| Real Ponctuals
+# region |---| Real
+
+# region |---|---| Ponctuals
 
 def display_real_ponctuals_editor() :
 
@@ -357,7 +382,7 @@ def display_real_ponctuals_editor() :
 
 # endregion
 
-# region |---| Real Periodics
+# region |---|---| Periodics
 
 def display_real_periodics_editor() :
 
@@ -432,7 +457,11 @@ def display_real_periodics_editor() :
 
 # endregion    
 
-# region |---| Budget selection
+# endregion
+
+# region |---| Budget
+
+# region |---|---| Selection
 
 def display_budget_selection() :
 
@@ -448,7 +477,7 @@ def display_budget_selection() :
 
 # endregion
 
-# region |---| Budget Ponctuals
+# region |---|---| Ponctuals
 
 def display_budget_ponctuals_editor() :
 
@@ -498,7 +527,7 @@ def display_budget_ponctuals_editor() :
 
 # endregion
 
-# region |---| Budget Periodics
+# region |---|---| Periodics
 
 def display_budget_periodics_editor() :
 
@@ -573,14 +602,18 @@ def display_budget_periodics_editor() :
 
 # endregion
 
-# region |---| Daily Balance
+# endregion
+
+# region |---| Sidebar
+
+# region |---|---| Daily Balance
 
 def display_daily_balance(
         daily_balance: pd.DataFrame,
         budget_balance: pd.DataFrame|None=None) :
     
     past_balance = daily_balance[daily_balance["date"] <= TODAY]
-    future_balance = daily_balance[daily_balance["date"] > TODAY]
+    future_balance = daily_balance[daily_balance["date"] >= (TODAY - relativedelta(days=1))]
 
     fig = go.Figure()
 
@@ -588,7 +621,7 @@ def display_daily_balance(
         x=past_balance["date"], 
         y=past_balance["balance"], 
         mode='lines', 
-        name='Balance actuelle', 
+        name='Réel', 
         line=dict(color='black')
     ))
 
@@ -596,7 +629,7 @@ def display_daily_balance(
         x=future_balance["date"], 
         y=future_balance["balance"], 
         mode='lines', 
-        name='Balance prévisionnelle', 
+        name='Prévisionnel', 
         line=dict(color='black', dash='dot')
     ))
 
@@ -628,7 +661,7 @@ def display_daily_balance(
 
 # endregion
 
-# region |---| Stats
+# region |---|---| Stats
 
 def display_stats(
         period: pd.DataFrame,
@@ -637,14 +670,14 @@ def display_stats(
     colors = [c for _, c in sorted(ALL_CATEGORIES.items())]
 
     spent_real = period[period["amount"] < 0]
-    spent_real["amount"] = spent_real["amount"].apply(lambda x : x*-1) # TODO warning ??
+    spent_real.loc[:, "amount"] = spent_real["amount"].apply(lambda x : x*-1)
     spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
     fig = go.Figure()
 
     if not budget_period is None :
         spent_budget = budget_period[budget_period["amount"] < 0]
-        spent_budget["amount"] = spent_budget["amount"].apply(lambda x : x*-1) # TODO warning ??
+        spent_budget.loc[:, "amount"] = spent_budget["amount"].apply(lambda x : x*-1)
         spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
         fig.add_trace(go.Bar(
@@ -682,6 +715,8 @@ def display_stats(
 
 # endregion
 
+# endregion
+
 # region |---| Main
 
 def run_ui() :
@@ -693,9 +728,16 @@ def run_ui() :
     col_title[0].title("Cabank")
 
     with col_title[1].container(border=True) :
-        display_settings()
-    
-    #col_main_ui = st.columns([7, 3])
+
+        tab_settings, tab_offset, tab_config = st.tabs(["Paramètres", "Calibration", "Configuration"])
+        with tab_settings :
+            display_settings()
+        
+        with tab_offset :
+            display_offset()
+        
+        with tab_config :
+            display_config()
 
     with st.container() :
 
@@ -759,7 +801,6 @@ def run_ui() :
         budget_period = None
         budget_balance = None
 
-    #with col_main_ui[1].container() :
     with st.sidebar :
         # TODO Afficher valeure finale
 
