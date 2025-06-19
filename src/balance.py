@@ -136,9 +136,43 @@ def get_offset(
         target_day: datetime,
         periodics: pd.DataFrame,
         ponctuals: pd.DataFrame) -> float :
+    """
+    Keep in mind that balance on day D is at the end of day D.
+    Here we want the offset at the START of day target_day. 2 situations :
+
     
-    ref_period_start = min(ref_day, target_day)
-    ref_period_end = max(ref_day, target_day) + relativedelta(days=1)
+    1)   ref_day    target_day
+         ___|___________|____
+             
+    We compute the following period :
+
+    ref_day    target_day (END)
+       |___________|
+                  |
+             target_day - 1 = START of target_day
+    
+    offset = balance(target_day - 1) + ref_balance - balance(ref_day)
+
+    -----
+
+    2)  target_day    ref_day
+          ___|___________|____
+             
+    We compute the following period :
+
+    target_day   ref_day (END)
+        |___________|
+    
+    offset = ref_balance - balance(ref_day)
+    """
+    
+    if ref_day < target_day :
+        ref_period_start = ref_day
+        ref_period_end = target_day
+        start_of_target_day = target_day - relativedelta(days=1)
+    else :
+        ref_period_start = target_day
+        ref_period_end = ref_day + relativedelta(days=1)
 
     past_period = get_real_period(
         period_start=ref_period_start,
@@ -154,9 +188,12 @@ def get_offset(
     )
 
     ref_day_balance = past_balance[past_balance["date"] == ref_day]["balance"].iloc[0]
-    target_day_balance = past_balance[past_balance["date"] == target_day]["balance"].iloc[0]
     
-    offset = target_day_balance + ref_balance - ref_day_balance
+    if ref_day < target_day :
+        start_of_target_day_balance = past_balance[past_balance["date"] == start_of_target_day]["balance"].iloc[0]
+        offset = start_of_target_day_balance + ref_balance - ref_day_balance
+    else :
+        offset = ref_balance - ref_day_balance
 
     return offset
 

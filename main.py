@@ -769,7 +769,7 @@ def run_ui() :
         offset = get_offset(
             ref_day=st.session_state.ref_day,
             ref_balance=st.session_state.ref_balance,
-            target_day=( st.session_state.period_start - relativedelta(days=1) ), # Balance au début du J0 = à la fin du J-1
+            target_day=st.session_state.period_start,
             periodics=FULL_PERIODICS,
             ponctuals=FULL_PONCTUALS
         )
