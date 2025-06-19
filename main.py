@@ -69,8 +69,9 @@ FIRST_DAY = 6
 # region |---| Offset
 
 # TODO load from config
+REF_DAY = None
 if "ref_day" not in st.session_state :
-    st.session_state.ref_day = None
+    st.session_state.ref_day = REF_DAY
 
 if "ref_balance" not in st.session_state :
     st.session_state.ref_balance = None
@@ -307,7 +308,7 @@ def display_offset() :
             "Jour de référence",
             format="DD-MM-YYYY",
             key="ref_day_input",
-            value=st.session_state.ref_day
+            value=REF_DAY
         )
         ref_balance_input = col_ref_form[1].number_input("Solde") # TODO better widget
 
@@ -608,6 +609,13 @@ def display_budget_periodics_editor() :
 
 # endregion
 
+# region |---| Calendar
+
+def display_calendar() :
+    ... # TODO
+
+# endregion
+
 # region |---| Sidebar
 
 # region |---|---| Daily Balance
@@ -745,7 +753,7 @@ def run_ui() :
 
     with st.container() :
 
-        tab_real, tab_budget = st.tabs(["Réel", "Budget"])
+        tab_real, tab_budget, tab_cal = st.tabs(["Réel", "Budget", "Calendrier des dépenses"])
 
         with tab_real :
             with st.expander("Virements/Prélèvements périodiques") :
@@ -763,6 +771,10 @@ def run_ui() :
                     display_budget_ponctuals_editor()
 
                 display_budget_periodics_editor()
+        
+        with tab_cal :
+
+            display_calendar()
     
     offset = 0.
     if not st.session_state.ref_balance is None :
