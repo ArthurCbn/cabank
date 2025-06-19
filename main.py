@@ -132,6 +132,15 @@ PERIODICS_PATH = USER_PATH / "periodics.csv"
 if PERIODICS_PATH.exists() :
     FULL_PERIODICS = pd.read_csv(PERIODICS_PATH)
 
+    # Typing
+    FULL_PERIODICS["category"].astype(str)
+    FULL_PERIODICS["description"] = FULL_PERIODICS["description"].fillna("").astype(str)
+    FULL_PERIODICS["amount"].astype(float)
+    FULL_PERIODICS["first"] = format_datetime(FULL_PERIODICS["first"])
+    FULL_PERIODICS["last"] = format_datetime(FULL_PERIODICS["last"])
+    FULL_PERIODICS["days"] = FULL_PERIODICS["days"].fillna(0).astype(int)
+    FULL_PERIODICS["months"] = FULL_PERIODICS["months"].fillna(0).astype(int)
+
     periodics_in_period_mask =  (
         ( format_datetime(FULL_PERIODICS["first"]) < st.session_state.period_end ) &
         ( format_datetime(FULL_PERIODICS["last"])  >= st.session_state.period_start )
@@ -141,17 +150,11 @@ if PERIODICS_PATH.exists() :
     ISOLATED_PERIODICS = FULL_PERIODICS[~periodics_in_period_mask].reset_index(drop=True) 
 
 else :
+    FULL_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
     PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
     ISOLATED_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
 
-# Typing
-PERIODICS["category"].astype(str)
-PERIODICS["description"] = PERIODICS["description"].fillna("").astype(str)
-PERIODICS["amount"].astype(float)
-PERIODICS["first"] = format_datetime(PERIODICS["first"])
-PERIODICS["last"] = format_datetime(PERIODICS["last"])
-PERIODICS["days"] = PERIODICS["days"].fillna(0).astype(int)
-PERIODICS["months"] = PERIODICS["months"].fillna(0).astype(int)
+
 
 if not "periodics" in st.session_state :
     st.session_state.periodics = PERIODICS
@@ -164,6 +167,12 @@ PONCTUALS_PATH = USER_PATH / "ponctuals.csv"
 if PONCTUALS_PATH.exists() :
     FULL_PONCTUALS = pd.read_csv(PONCTUALS_PATH)
 
+    # Typing
+    FULL_PONCTUALS["category"].astype(str)
+    FULL_PONCTUALS["description"] = FULL_PONCTUALS["description"].fillna("").astype(str)
+    FULL_PONCTUALS["amount"].astype(float)
+    FULL_PONCTUALS["date"] = format_datetime(FULL_PONCTUALS["date"])
+
     ponctuals_in_period_mask =  (
         ( format_datetime(FULL_PONCTUALS["date"]) >= st.session_state.period_start ) &
         ( format_datetime(FULL_PONCTUALS["date"]) < st.session_state.period_end )
@@ -173,14 +182,9 @@ if PONCTUALS_PATH.exists() :
     ISOLATED_PONCTUALS = FULL_PONCTUALS[~ponctuals_in_period_mask].reset_index(drop=True) 
 
 else :
+    FULL_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
     PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
     ISOLATED_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
-
-# Typing
-PONCTUALS["category"].astype(str)
-PONCTUALS["description"] = PONCTUALS["description"].fillna("").astype(str)
-PONCTUALS["amount"].astype(float)
-PONCTUALS["date"] = format_datetime(PONCTUALS["date"])
 
 if not "ponctuals" in st.session_state :
     st.session_state.ponctuals = PONCTUALS
@@ -765,9 +769,9 @@ def run_ui() :
         offset = get_offset(
             ref_day=st.session_state.ref_day,
             ref_balance=st.session_state.ref_balance,
-            target_day=st.session_state.period_start,
-            periodics=st.session_state.periodics,
-            ponctuals=st.session_state.ponctuals
+            target_day=( st.session_state.period_start - relativedelta(days=1) ), # Balance au début du J0 = à la fin du J-1
+            periodics=FULL_PERIODICS,
+            ponctuals=FULL_PONCTUALS
         )
 
     period = get_real_period(

@@ -74,7 +74,7 @@ def get_aggregated_period(
         ponctuals: pd.DataFrame) -> pd.DataFrame :
 
     period_items = ponctuals[ponctuals.apply(lambda row: period_start <= row["date"] < period_end, axis=1)]
-    period_items["amount"] *= -1
+    period_items.loc[:, "amount"] *= -1
 
     period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
     
@@ -98,7 +98,7 @@ def get_budget_period(
         budget_periodics: pd.DataFrame,
         budget_ponctuals: pd.DataFrame) -> pd.DataFrame :
     
-    budget_periodics["amount"] *= -1
+    budget_periodics.loc[:, "amount"] *= -1
 
     return get_aggregated_period(period_start, period_end, safe_concat(periodics, budget_periodics), budget_ponctuals)
 
@@ -156,7 +156,7 @@ def get_offset(
     ref_day_balance = past_balance[past_balance["date"] == ref_day]["balance"].iloc[0]
     target_day_balance = past_balance[past_balance["date"] == target_day]["balance"].iloc[0]
     
-    offset = target_day_balance + ( ref_balance - ref_day_balance )
+    offset = target_day_balance + ref_balance - ref_day_balance
 
     return offset
 
