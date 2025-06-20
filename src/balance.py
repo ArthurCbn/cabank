@@ -48,8 +48,8 @@ def get_all_periodics_in_period(
         period_end: datetime,
         data: pd.DataFrame) -> pd.DataFrame :
     
-    all_periodics = pd.DataFrame(columns=["category", "description", "amount", "date"])
-    for _, periodic in data.iterrows() :
+    all_periodics = pd.DataFrame(columns=["category", "description", "amount", "date", "periodic_id"])
+    for i, periodic in data.iterrows() :
         
         occurences = get_all_occurences_in_period(periodic, period_start, period_end)
         for occurence in occurences :
@@ -58,6 +58,7 @@ def get_all_periodics_in_period(
                 safe_get(periodic, "description", "NO DESCRIPTION"),
                 safe_get(periodic, "amount", 0),
                 occurence,
+                i
             ]
     
     return all_periodics
@@ -75,11 +76,14 @@ def get_aggregated_period(
 
     period_items = ponctuals[ponctuals.apply(lambda row: period_start <= row["date"] < period_end, axis=1)]
     period_items.loc[:, "amount"] *= -1
+    period_items["periodic_id"] = None
 
     period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
-    
-    # TODO disable warning
-    return safe_concat(period_items, period_periodics)
+
+    period = safe_concat(period_items, period_periodics).reset_index(drop=True)
+    period["is_ignored"] = False
+
+    return period 
 
 
 def get_real_period(
@@ -118,7 +122,13 @@ def get_daily_balance(
 
     day = period_start
     while day < period_end :
-        balance = aggregated_period[aggregated_period["date"] <= day]["amount"].sum() + start_offset
+
+        expenses_before_day = (
+            ( aggregated_period["date"] <= day ) & 
+            ( aggregated_period["is_ignored"] == False )
+        )
+
+        balance = aggregated_period[expenses_before_day]["amount"].sum() + start_offset
         daily_balance.loc[len(daily_balance)] = [day, balance]
         
         day+=one_day

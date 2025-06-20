@@ -14,6 +14,8 @@ from pathlib import Path
 from src.utils import (
     format_datetime,
     combine_and_save_csv,
+    is_periodic_occurence_ignored,
+    apply_ignore_to_period,
 )
 from src.balance import (
     get_real_period,
@@ -21,6 +23,7 @@ from src.balance import (
     get_daily_balance,
     get_offset,
 )
+from streamlit_calendar import calendar
 
 # region INIT
 
@@ -61,6 +64,7 @@ ALL_CATEGORIES = {
 }
 
 MONEY_FORMAT = "dollar"
+MONEY_SYMBOL = "$"
 
 FIRST_DAY = 6
 
@@ -240,6 +244,20 @@ if not "budget_ponctuals" in st.session_state :
 
 # endregion
 
+# region |---| Calendars tweaks
+
+# Trick to force update of the calendar when needed (it doesnt refresh alone)
+if "calendar_state" not in st.session_state :
+    st.session_state.calendar_state = 0
+
+if "calendar_events" not in st.session_state :
+    st.session_state.calendar_events = []
+
+if "ignore_periodics" not in st.session_state :
+    st.session_state.ignore_periodics = {}
+
+# endregion
+
 # endregion
 
 
@@ -319,7 +337,7 @@ def display_offset() :
 
         if ref_submit_button :
             # TODO save in config file
-            st.session_state.ref_day = datetime.combine(ref_day_input, time.min)
+            st.session_state.ref_day = datetime.combine(ref_day_input, time.min) # TODO dumbproof the date
             st.session_state.ref_balance = ref_balance_input
 
 # endregion
@@ -329,6 +347,135 @@ def display_offset() :
 def display_config() :
     ...
     # TODO
+
+# endregion
+
+# endregion
+
+# region |---| Calendar
+
+def display_calendar(period: pd.DataFrame) :
+    
+# region |---|---| Pop-up
+
+    @st.dialog("Détails de la dépense")
+    def _display_expense_details(
+        index: int,
+        expense: pd.Series) :
+
+        st.subheader(f'{expense["category"]} : {expense["amount"]} {MONEY_SYMBOL}')
+        st.write(expense["description"])
+
+        # Periodic => Possibility to ignore
+        if ( p_id := expense["periodic_id"] ) is not None :
+
+            with st.form(key=f"ignore_form_{index}", border=False) :
+                
+                form_cols = st.columns(2, vertical_alignment="center")
+                
+                ignore = form_cols[0].checkbox(
+                    "Ignorer occurence",
+                    value=expense["is_ignored"],
+                    key=f"ignore_{index}"
+                )
+                ignore_submit = form_cols[1].form_submit_button("Fermer", use_container_width=True)
+                
+                if ignore_submit :
+                    date = expense["date"].strftime("%Y-%m-%d")
+
+                    # Ignore
+                    if ignore is True:
+                        if p_id not in st.session_state.ignore_periodics :
+                            st.session_state.ignore_periodics[p_id] = []
+                        st.session_state.ignore_periodics[p_id].append(date)
+                    
+                    # Un-ignore
+                    else :
+                        if is_periodic_occurence_ignored(date, p_id, st.session_state.ignore_periodics) :
+                            st.session_state.ignore_periodics[p_id].remove(date)
+                    # TODO Write this in config
+                    st.session_state.calendar_state += 1
+                    st.rerun()
+
+        else :
+            if st.button("Fermer", use_container_width=True) :
+                st.session_state.calendar_state += 1
+                st.rerun()
+    
+    # Hide the 'x' button of the st.dialog
+    st.html(
+        '''
+            <style>
+                div[aria-label="dialog"]>button[aria-label="Close"] {
+                    display: none;
+                }
+            </style>
+        '''
+    )
+
+# endregion
+
+# region |---|---| Calendar
+
+    events = []
+    for i, row in period.iterrows() :
+
+        if row["is_ignored"] :
+            bg_color = "#949494"
+        else : 
+            bg_color = "white"
+
+        events.append({
+            "id": i,
+            "title": f"{row['amount']:+.2f} {MONEY_SYMBOL}",
+            "start": row["date"].strftime("%Y-%m-%d"),
+            "color": bg_color,
+            "borderColor": ALL_CATEGORIES[row["category"]],
+            "absolute_amount": abs(row["amount"]),
+            "display": "list-item" if row["periodic_id"] is None else "block" 
+        })
+    
+    if events != st.session_state.calendar_events :
+        st.session_state.calendar_state += 1
+        st.session_state.calendar_events = events
+
+    calendar_options = {
+        "initialView": "dayGridMonth",
+        "editable": False,
+        "blockEvent": True,
+        "locale": "fr",
+        "firstDay": 1,
+        "dayMaxEvents": 3,
+        "headerToolbar": {
+            "left": "",
+            "center": "title",
+            "right": ""
+        },
+        "footerToolbar": {
+            "left": "",
+            "center": "",
+            "right": "prev,next"
+        },
+        "validRange": {
+            "start": st.session_state.period_start.strftime("%Y-%m-%d"),
+            "end": st.session_state.period_end.strftime("%Y-%m-%d")
+        },
+        "aspectRatio": 2,
+        "eventOrder": ["-absolute_amount"],
+        "eventTextColor": "black"
+    }
+    # BUG when doing actions on other tabs
+    calendar_response = calendar(
+        events=events, 
+        options=calendar_options, 
+        key=f"calendar_{st.session_state.calendar_state}"
+    )
+    
+    if event := calendar_response.get("eventClick") :
+
+        event_id = int(event["event"]["id"])
+        clicked_expense = period.iloc[event_id]
+        _display_expense_details(event_id, clicked_expense)
 
 # endregion
 
@@ -609,13 +756,6 @@ def display_budget_periodics_editor() :
 
 # endregion
 
-# region |---| Calendar
-
-def display_calendar() :
-    ... # TODO
-
-# endregion
-
 # region |---| Sidebar
 
 # region |---|---| Daily Balance
@@ -681,7 +821,8 @@ def display_stats(
 
     colors = [c for _, c in sorted(ALL_CATEGORIES.items())]
 
-    spent_real = period[period["amount"] < 0]
+    spent_real = period[( period["amount"] < 0 ) & ( period["is_ignored"] == False )]
+
     spent_real.loc[:, "amount"] = spent_real["amount"].apply(lambda x : x*-1)
     spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
@@ -731,7 +872,11 @@ def display_stats(
 
 # region |---| Main
 
-def run_ui() :
+def run_ui(
+        period: pd.DataFrame,
+        daily_balance: pd.DataFrame,
+        budget_period: pd.DataFrame,
+        budget_balance: pd.DataFrame) :
 
     st.set_page_config(layout="wide")
 
@@ -753,7 +898,10 @@ def run_ui() :
 
     with st.container() :
 
-        tab_real, tab_budget, tab_cal = st.tabs(["Réel", "Budget", "Calendrier des dépenses"])
+        tab_cal, tab_real, tab_budget = st.tabs(["Calendrier des dépenses", "Réel", "Budget"])
+
+        with tab_cal :
+            display_calendar(period)
 
         with tab_real :
             with st.expander("Virements/Prélèvements périodiques") :
@@ -771,11 +919,30 @@ def run_ui() :
                     display_budget_ponctuals_editor()
 
                 display_budget_periodics_editor()
-        
-        with tab_cal :
 
-            display_calendar()
-    
+    with st.sidebar :
+        # TODO Afficher valeure finale
+
+        display_daily_balance(
+            daily_balance=daily_balance,
+            budget_balance=budget_balance,    
+        )
+        display_stats(
+            period=period,
+            budget_period=budget_period,
+        )
+
+# endregion
+
+# endregion
+
+
+# region MAIN
+
+if __name__ == '__main__' :
+
+# region |---| Offset
+
     offset = 0.
     if not st.session_state.ref_balance is None :
         offset = get_offset(
@@ -786,18 +953,32 @@ def run_ui() :
             ponctuals=FULL_PONCTUALS
         )
 
+# endregion
+
+# region |---| Real
+
     period = get_real_period(
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
         periodics=st.session_state.periodics,
         ponctuals=st.session_state.ponctuals
     )
+
+    period = apply_ignore_to_period(
+        period, 
+        st.session_state.ignore_periodics
+    )
+
     daily_balance = get_daily_balance(
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
         aggregated_period=period,
         start_offset=offset
     )
+
+# endregion
+
+# region |---| Budget
 
     if not st.session_state.budget is None :
         budget_period = get_budget_period(
@@ -817,43 +998,14 @@ def run_ui() :
         budget_period = None
         budget_balance = None
 
-    with st.sidebar :
-        # TODO Afficher valeure finale
-
-        display_daily_balance(
-            daily_balance=daily_balance,
-            budget_balance=budget_balance,    
-        )
-        display_stats(
-            period=period,
-            budget_period=budget_period,
-        )
-
-
-        # TODO Mettre un bouton pop-up qui affiche le détail de la période avec toutes les dépenses ?
-
-
 # endregion
 
+    run_ui(
+        period=period,
+        daily_balance=daily_balance,
+        budget_period=budget_period,
+        budget_balance=budget_balance
+    )
+
 # endregion
-
-
-# region MAIN
-
-if __name__ == '__main__' :
-    run_ui()
-
-# endregion
-
-
-
-
-# real = get_real_period(PERIOD_START, PERIOD_END, PERIODICS, PONCTUALS)
-# budget = get_budget_period(PERIOD_START, PERIOD_END, PERIODICS, PERIODICS, PONCTUALS)
-
-# balance_real = get_daily_balance(PERIOD_START, PERIOD_END, real)
-# balance_budget = get_daily_balance(PERIOD_START, PERIOD_END, budget)
-
-# plt.plot(balance_real["date"], balance_real["balance"])
-# plt.plot(balance_budget["date"], balance_budget["balance"])
 

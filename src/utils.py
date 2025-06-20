@@ -42,3 +42,35 @@ def combine_and_save_csv(
 
     reunited_df = safe_concat(modified_df, isolated_df)
     reunited_df.to_csv(path, index=False)
+
+
+def is_periodic_occurence_ignored(
+        date: str,
+        periodic_id: int,
+        ignore_periodics: dict[int, list[str]]) -> bool :
+    
+    if periodic_id not in ignore_periodics :
+        return False
+    
+    if date in ignore_periodics[periodic_id] :
+        return True
+    
+    return False
+
+def apply_ignore_to_period(
+        period: pd.DataFrame,
+        ignore_periodics: dict[int, list[str]]) -> pd.DataFrame :
+    
+    def _is_row_ignored(
+            row: pd.Series,
+            ignore_periodics: dict[int, list[str]]=ignore_periodics) -> bool :
+        
+        if ( periodic_id := row["periodic_id"] ) is None :
+            return False
+        
+        date = row["date"].strftime("%Y-%m-%d")
+        return is_periodic_occurence_ignored(date, periodic_id, ignore_periodics)
+
+    period.loc[:, "is_ignored"] = period.apply(_is_row_ignored, axis=1)
+
+    return period
