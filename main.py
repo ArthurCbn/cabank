@@ -2,6 +2,7 @@ from datetime import (
     datetime,
     time,
 )
+import uuid
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 from enum import Enum
@@ -57,14 +58,21 @@ if not USER_PATH.exists() :
 
 # region |---| Config TODO
 
-ALL_CATEGORIES = {
-    "Logement": "red", 
-    "Nourriture": "green", 
-    "Salaire": "blue"
-}
+MONEY_FORMAT = "euro"
+MONEY_SYMBOL = "€"
 
-MONEY_FORMAT = "dollar"
-MONEY_SYMBOL = "$"
+if "all_categories" not in st.session_state :
+    st.session_state.all_categories = {
+        "Logement": "#ff0000", 
+        "Nourriture": "#008000", 
+        "Salaire": "#0000ff",
+    }
+
+if "categories_id" not in st.session_state :
+    st.session_state.categories_id = {
+        uuid.uuid4(): cat 
+        for cat in st.session_state.all_categories
+    }
 
 FIRST_DAY = 6
 
@@ -77,8 +85,9 @@ REF_DAY = None
 if "ref_day" not in st.session_state :
     st.session_state.ref_day = REF_DAY
 
+REF_BALANCE = None
 if "ref_balance" not in st.session_state :
-    st.session_state.ref_balance = None
+    st.session_state.ref_balance = REF_BALANCE
 
 # endregion
 
@@ -326,9 +335,14 @@ def display_offset() :
             "Jour de référence",
             format="DD-MM-YYYY",
             key="ref_day_input",
-            value=REF_DAY
+            value=st.session_state.ref_day
         )
-        ref_balance_input = col_ref_form[1].number_input("Solde") # TODO better widget
+        ref_balance_input = col_ref_form[1].number_input(
+            "Solde", 
+            format="%.2f", 
+            step=1.,
+            value=st.session_state.ref_balance
+        )
 
         ref_submit_button  = col_ref_form[2].form_submit_button(
             "Valider", 
@@ -339,14 +353,102 @@ def display_offset() :
             # TODO save in config file
             st.session_state.ref_day = datetime.combine(ref_day_input, time.min) # TODO dumbproof the date
             st.session_state.ref_balance = ref_balance_input
+            st.rerun()
 
 # endregion
 
 # region |---|---| Config
 
 def display_config() :
-    ...
-    # TODO
+    
+    col_config = st.columns(3)
+
+# region |---|---|---| Categories
+
+# region |---|---|---|---| Apply modifs
+
+    def _apply_categories_modifications(new_categories: dict[uuid.UUID, tuple[str, str]]) :
+        
+        # Modifications
+        cat_name_modifications = {
+            c_id: (old_name, new_name)
+            for c_id, (new_name, _) in new_categories.items()
+            if (old_name := st.session_state.categories_id.get(c_id, None))
+            if old_name != new_name
+        }
+        for c_id, (old_name, new_name) in cat_name_modifications.items() :
+            st.session_state.categories_id[c_id] = new_name
+            # TODO apply modifs to csv
+
+        # New
+        for c_id, (cat, _) in new_categories.items() :
+            if not c_id in st.session_state.categories_id :
+                st.session_state.categories_id[c_id] = cat
+
+        st.session_state.all_categories = {
+            cat: color
+            for _, (cat, color) in new_categories.items()
+        }
+        # TODO save in config file
+
+# endregion
+
+# region |---|---|---|---| Pop-up
+  
+    @st.dialog("Modifier les catégories")
+    def _edit_categories(tmp_all_categories: dict[uuid.UUID, tuple[str, str]]) :
+
+        for uid, (cat, color) in tmp_all_categories.items():
+        
+            cols_category = st.columns([4, 2, 1], vertical_alignment="bottom")
+
+            cat_input = cols_category[0].text_input(
+                f"Nom", 
+                value=cat, 
+                key=f"name_{uid}"
+            )
+            color_input = cols_category[1].color_picker(
+                "Couleur", 
+                value=color, 
+                key=f"color_{uid}"
+            )
+            tmp_all_categories[uid] = (cat_input, color_input)
+            
+            if len(tmp_all_categories) > 1:
+                if cols_category[2].button("🗑️", key=f"remove_{uid}"):
+                    tmp_all_categories.pop(uid)
+                    st.rerun(scope="fragment")
+        
+        if st.button("Ajouter une catégorie") :
+            tmp_all_categories[uuid.uuid4()] = ("Nouvelle catégorie", "#000000")
+            st.rerun(scope="fragment")
+
+        col_buttons = st.columns(2)
+        if col_buttons[0].button("Annuler", use_container_width=True) :
+            st.rerun()
+        
+        if col_buttons[1].button("Confirmer", use_container_width=True) :
+            
+            # Check that there is no duplicates
+            all_names = [cat for cat, _ in tmp_all_categories.values()]
+            duplicates = set([name for name in all_names if all_names.count(name) > 1])
+            if duplicates:
+                st.error(f"Chaque catégorie doit avoir un nom différent ! (doublons : {', '.join(duplicates)})")
+            
+            else:
+                _apply_categories_modifications(tmp_all_categories)
+                st.rerun()
+
+# endregion
+
+    if col_config[2].button("Modifier les catégories", use_container_width=True) :
+        tmp_all_categories = {
+            c_id: (cat, st.session_state.all_categories[cat])
+            for c_id, cat in st.session_state.categories_id.items()
+        }
+        _edit_categories(tmp_all_categories)
+
+# endregion
 
 # endregion
 
@@ -373,7 +475,7 @@ def display_calendar(period: pd.DataFrame) :
                 
                 form_cols = st.columns(2, vertical_alignment="center")
                 
-                ignore = form_cols[0].checkbox(
+                ignore = form_cols[0].toggle(
                     "Ignorer occurence",
                     value=expense["is_ignored"],
                     key=f"ignore_{index}"
@@ -393,7 +495,8 @@ def display_calendar(period: pd.DataFrame) :
                     else :
                         if is_periodic_occurence_ignored(date, p_id, st.session_state.ignore_periodics) :
                             st.session_state.ignore_periodics[p_id].remove(date)
-                    # TODO Write this in config
+                    
+                    # TODO Write this in a file
                     st.session_state.calendar_state += 1
                     st.rerun()
 
@@ -430,7 +533,7 @@ def display_calendar(period: pd.DataFrame) :
             "title": f"{row['amount']:+.2f} {MONEY_SYMBOL}",
             "start": row["date"].strftime("%Y-%m-%d"),
             "color": bg_color,
-            "borderColor": ALL_CATEGORIES[row["category"]],
+            "borderColor": st.session_state.all_categories.get(row["category"], "white"),
             "absolute_amount": abs(row["amount"]),
             "display": "list-item" if row["periodic_id"] is None else "block" 
         })
@@ -449,11 +552,6 @@ def display_calendar(period: pd.DataFrame) :
         "headerToolbar": {
             "left": "",
             "center": "title",
-            "right": ""
-        },
-        "footerToolbar": {
-            "left": "",
-            "center": "",
             "right": "prev,next"
         },
         "validRange": {
@@ -504,7 +602,7 @@ def display_real_ponctuals_editor() :
             ),
             "category": st.column_config.SelectboxColumn(
                 "Catégorie", 
-                options=ALL_CATEGORIES.keys(), 
+                options=st.session_state.all_categories.keys(), 
                 width="small",
                 required=True
             ),
@@ -548,7 +646,7 @@ def display_real_periodics_editor() :
         column_config={
             "category": st.column_config.SelectboxColumn(
                 "Catégorie", 
-                options=ALL_CATEGORIES.keys(), 
+                options=st.session_state.all_categories.keys(), 
                 width="small",
                 required=True
             ),
@@ -619,13 +717,14 @@ def display_budget_selection() :
 
     col_budget_selection = st.columns(2, vertical_alignment="bottom")
 
-    budget = col_budget_selection[0].selectbox(
+    budget_input = col_budget_selection[0].selectbox(
         "Sélection du budget",
         options=ALL_BUDGETS,
-        key="budget",
+        key="budget_input",
         accept_new_options=True,
         index=ALL_BUDGETS.index(st.session_state.budget),
     )
+    st.session_state.budget = budget_input
 
 # endregion
 
@@ -650,7 +749,7 @@ def display_budget_ponctuals_editor() :
             ),
             "category": st.column_config.SelectboxColumn(
                 "Catégorie", 
-                options=ALL_CATEGORIES.keys(), 
+                options=st.session_state.all_categories.keys(), 
                 width="small",
                 required=True
             ),
@@ -693,7 +792,7 @@ def display_budget_periodics_editor() :
         column_config={
             "category": st.column_config.SelectboxColumn(
                 "Catégorie", 
-                options=ALL_CATEGORIES.keys(), 
+                options=st.session_state.all_categories.keys(), 
                 width="small",
                 required=True
             ),
@@ -756,6 +855,13 @@ def display_budget_periodics_editor() :
 
 # endregion
 
+# region |---| Stats
+
+def display_monthly_stats() :
+    ...
+
+# endregion
+
 # region |---| Sidebar
 
 # region |---|---| Daily Balance
@@ -815,19 +921,20 @@ def display_daily_balance(
 
 # region |---|---| Stats
 
-def display_stats(
+def display_amount_by_cat(
         period: pd.DataFrame,
         budget_period: pd.DataFrame|None=None) :
 
-    colors = [c for _, c in sorted(ALL_CATEGORIES.items())]
 
-    spent_real = period[( period["is_ignored"] == False )]
+    spent_real = period[( period["is_ignored"] == False ) & ( period["category"].isin(st.session_state.all_categories) )]
     spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().sort_index()
+
+    colors = [st.session_state.all_categories[cat] for cat in spent_real_stats.index]
 
     fig = go.Figure()
 
     if not budget_period is None :
-        spent_budget = budget_period[budget_period["amount"] < 0]
+        spent_budget = budget_period[budget_period["category"].isin(st.session_state.all_categories)]
         spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
         fig.add_trace(go.Bar(
@@ -895,7 +1002,7 @@ def run_ui(
 
     with st.container() :
 
-        tab_cal, tab_real, tab_budget = st.tabs(["Calendrier des dépenses", "Réel", "Budget"])
+        tab_cal, tab_real, tab_budget, tab_stats = st.tabs(["Calendrier des dépenses", "Réel", "Budget", "Statistiques mensuelles"])
 
         with tab_cal :
             display_calendar(period)
@@ -916,6 +1023,9 @@ def run_ui(
                     display_budget_ponctuals_editor()
 
                 display_budget_periodics_editor()
+            
+        with tab_stats :
+            display_monthly_stats()
 
     with st.sidebar :
         # TODO Afficher valeure finale
@@ -924,7 +1034,7 @@ def run_ui(
             daily_balance=daily_balance,
             budget_balance=budget_balance,    
         )
-        display_stats(
+        display_amount_by_cat(
             period=period,
             budget_period=budget_period,
         )
