@@ -57,6 +57,7 @@ def is_periodic_occurence_ignored(
     
     return False
 
+
 def apply_ignore_to_period(
         period: pd.DataFrame,
         ignore_periodics: dict[int, list[str]]) -> pd.DataFrame :
@@ -74,3 +75,15 @@ def apply_ignore_to_period(
     period.loc[:, "is_ignored"] = period.apply(_is_row_ignored, axis=1)
 
     return period
+
+
+def update_category_name(
+        old_name: str,
+        new_name: str,
+        user_folder: Path) :
+    
+    for data_file in user_folder.rglob("*.csv") :
+        df = pd.read_csv(data_file)
+        if "category" in df.columns :
+            df.loc[:, "category"] = df["category"].replace(old_name, new_name)
+            df.to_csv(data_file, index=False)

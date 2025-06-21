@@ -17,6 +17,7 @@ from src.utils import (
     combine_and_save_csv,
     is_periodic_occurence_ignored,
     apply_ignore_to_period,
+    update_category_name,
 )
 from src.balance import (
     get_real_period,
@@ -378,7 +379,12 @@ def display_config() :
         }
         for c_id, (old_name, new_name) in cat_name_modifications.items() :
             st.session_state.categories_id[c_id] = new_name
-            # TODO apply modifs to csv
+            
+            update_category_name(
+                old_name=old_name,
+                new_name=new_name,
+                user_folder=USER_PATH
+            )
 
         # New
         for c_id, (cat, _) in new_categories.items() :
@@ -724,7 +730,9 @@ def display_budget_selection() :
         accept_new_options=True,
         index=ALL_BUDGETS.index(st.session_state.budget),
     )
-    st.session_state.budget = budget_input
+    if budget_input != st.session_state.budget :
+        st.session_state.budget = budget_input
+        st.rerun()
 
 # endregion
 
@@ -858,7 +866,7 @@ def display_budget_periodics_editor() :
 # region |---| Stats
 
 def display_monthly_stats() :
-    ...
+    ... # TODO large period selector + stats by month by category (one plot per cat)
 
 # endregion
 

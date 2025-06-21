@@ -74,14 +74,18 @@ def get_aggregated_period(
         periodics: pd.DataFrame,
         ponctuals: pd.DataFrame) -> pd.DataFrame :
 
-    period_items = ponctuals[ponctuals.apply(lambda row: period_start <= row["date"] < period_end, axis=1)]
-    period_items.loc[:, "amount"] *= -1
-    period_items["periodic_id"] = None
+    period_items = ponctuals[ponctuals.apply(lambda row: period_start <= row["date"] < period_end, axis=1)].copy()
+    
+    if not period_items.empty :
+        period_items.loc[:, "amount"] *= -1
+        period_items.loc[:, "periodic_id"] = None
 
     period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
 
     period = safe_concat(period_items, period_periodics).reset_index(drop=True)
-    period["is_ignored"] = False
+
+    if not period.empty :
+        period.loc[:, "is_ignored"] = False
 
     return period 
 
