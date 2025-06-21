@@ -821,16 +821,13 @@ def display_stats(
 
     colors = [c for _, c in sorted(ALL_CATEGORIES.items())]
 
-    spent_real = period[( period["amount"] < 0 ) & ( period["is_ignored"] == False )]
-
-    spent_real.loc[:, "amount"] = spent_real["amount"].apply(lambda x : x*-1)
+    spent_real = period[( period["is_ignored"] == False )]
     spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
     fig = go.Figure()
 
     if not budget_period is None :
         spent_budget = budget_period[budget_period["amount"] < 0]
-        spent_budget.loc[:, "amount"] = spent_budget["amount"].apply(lambda x : x*-1)
         spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().sort_index()
 
         fig.add_trace(go.Bar(
