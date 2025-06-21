@@ -877,11 +877,11 @@ def run_ui(
 
     st.set_page_config(layout="wide")
 
-    col_title = st.columns([2, 8])
+    col_title = st.columns([2, 8], vertical_alignment="top")
 
     col_title[0].title("Cabank")
 
-    with col_title[1].container(border=True) :
+    with col_title[1].expander(label="Réglages", expanded=True) :
 
         tab_settings, tab_offset, tab_config = st.tabs(["Paramètres", "Calibration", "Configuration"])
         with tab_settings :
