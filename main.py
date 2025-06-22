@@ -11,6 +11,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from typing import Any
 import os
+import shutil
+import json
 from pathlib import Path
 from src.utils import (
     format_datetime,
@@ -37,6 +39,8 @@ DATA_PATH = ROOT_PATH / "data"
 if not DATA_PATH.exists() :
     os.mkdir(DATA_PATH)
 
+DEFAULT_CONFIG_PATH = DATA_PATH / "default_config.json"
+
 # endregion
 
 # region |---| User
@@ -57,17 +61,20 @@ if not USER_PATH.exists() :
 
 # endregion
 
-# region |---| Config TODO
+# region |---| Config
 
-MONEY_FORMAT = "euro"
-MONEY_SYMBOL = "€"
+CONFIG_PATH = USER_PATH / "config.json"
+if not CONFIG_PATH.exists() :
+    shutil.copy(DEFAULT_CONFIG_PATH, CONFIG_PATH)
+
+with open(CONFIG_PATH, "r") as f :
+    CONFIG = json.load(f)
+
+MONEY_FORMAT = CONFIG.get("money_format", "")
+MONEY_SYMBOL = CONFIG.get("money_symbol", "")
 
 if "all_categories" not in st.session_state :
-    st.session_state.all_categories = {
-        "Logement": "#ff0000", 
-        "Nourriture": "#008000", 
-        "Salaire": "#0000ff",
-    }
+    st.session_state.all_categories = CONFIG.get("categories", {})
 
 if "categories_id" not in st.session_state :
     st.session_state.categories_id = {
@@ -76,18 +83,23 @@ if "categories_id" not in st.session_state :
     }
 
 if "first_day" not in st.session_state :
-    st.session_state.first_day = 1
+    st.session_state.first_day = CONFIG.get("first_day", 1)
 
 # endregion
 
 # region |---| Offset
 
-# TODO load from config
-REF_DAY = None
+calibration = CONFIG.get("calibration", {})
+
+REF_DAY = calibration.get("ref_day", None)
+if not REF_DAY is None :
+    REF_DAY = datetime.strptime(REF_DAY, "%Y-%m-%d")
+
+REF_BALANCE = calibration.get("ref_balance", None)
+
 if "ref_day" not in st.session_state :
     st.session_state.ref_day = REF_DAY
 
-REF_BALANCE = None
 if "ref_balance" not in st.session_state :
     st.session_state.ref_balance = REF_BALANCE
 
@@ -352,9 +364,16 @@ def display_offset() :
         )
 
         if ref_submit_button :
-            # TODO save in config file
-            st.session_state.ref_day = datetime.combine(ref_day_input, time.min) # TODO dumbproof the date
+            st.session_state.ref_day = datetime.combine(ref_day_input, time.min)
             st.session_state.ref_balance = ref_balance_input
+
+            CONFIG["calibration"] = {
+                "ref_day": st.session_state.ref_day.strftime("%Y-%m-%d"),
+                "ref_balance": ref_balance_input
+            }
+            with open(CONFIG_PATH, "w") as f :
+                json.dump(CONFIG, f, indent=4)
+
             st.rerun()
 
 # endregion
@@ -396,7 +415,10 @@ def display_config() :
             cat: color
             for _, (cat, color) in new_categories.items()
         }
-        # TODO save in config file
+        
+        CONFIG["categories"] = st.session_state.all_categories
+        with open(CONFIG_PATH, "w") as f :
+            json.dump(CONFIG, f, indent=4)
 
 # endregion
 
@@ -468,9 +490,14 @@ def display_config() :
         value=st.session_state.first_day
     )
     if col_config[1].button("Confirmer", use_container_width=True, key="first_day_input_button") :
+        
         st.session_state.first_day = input_first_day
+
+        CONFIG["first_day"] = input_first_day
+        with open(CONFIG_PATH, 'w') as f :
+            json.dump(CONFIG, f, indent=4)
+
         st.rerun()
-        # TODO SAVE
     
 # endregion
 

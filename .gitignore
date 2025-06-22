@@ -1,3 +1,5 @@
 *.csv
+*.json
+!default_config.json
 __pycache__
 TODO

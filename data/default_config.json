@@ -1,0 +1,10 @@
+{
+    "categories": {
+        "Logement": "#ff0000", 
+        "Nourriture": "#008000", 
+        "Salaire": "#0000ff"
+    },
+    "first_day": 1,
+    "money_format": "euro",
+    "money_symbol": "€"
+}
