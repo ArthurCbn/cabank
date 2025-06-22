@@ -75,7 +75,8 @@ if "categories_id" not in st.session_state :
         for cat in st.session_state.all_categories
     }
 
-FIRST_DAY = 6
+if "first_day" not in st.session_state :
+    st.session_state.first_day = 1
 
 # endregion
 
@@ -100,9 +101,9 @@ if "horizon" not in st.session_state :
     st.session_state.horizon = 1
 
 if "period_start" not in st.session_state :
-    month = datetime.strptime(f"{FIRST_DAY}/{TODAY.month}/{TODAY.year}", "%d/%m/%Y")
+    month = datetime.strptime(f"{st.session_state.first_day}/{TODAY.month}/{TODAY.year}", "%d/%m/%Y")
     
-    if TODAY.day < FIRST_DAY :
+    if TODAY.day < st.session_state.first_day :
         st.session_state.period_start = month - relativedelta(month=st.session_state.horizon)
     else :   
         st.session_state.period_start = month
@@ -279,7 +280,7 @@ if "ignore_periodics" not in st.session_state :
 
 def display_settings() :
 
-    col_settings = st.columns([1, 1, 2], vertical_alignment="bottom")
+    col_settings = st.columns([1, 1, 2], vertical_alignment="top")
 
 # region |---|---|---| User
 
@@ -355,6 +356,7 @@ def display_offset() :
             st.session_state.ref_day = datetime.combine(ref_day_input, time.min) # TODO dumbproof the date
             st.session_state.ref_balance = ref_balance_input
             st.rerun()
+            # BUG changing calib messes up the budget
 
 # endregion
 
@@ -362,7 +364,7 @@ def display_offset() :
 
 def display_config() :
     
-    col_config = st.columns(3)
+    col_config = st.columns(3, vertical_alignment="bottom")
 
 # region |---|---|---| Categories
 
@@ -456,6 +458,23 @@ def display_config() :
 
 # endregion
 
+# region |---|---|---| First day
+
+    input_first_day = col_config[0].number_input(
+        "Premier jour du mois",
+        min_value=1,
+        max_value=28,
+        step=1,
+        format="%.0d",
+        value=st.session_state.first_day
+    )
+    if col_config[1].button("Confirmer", use_container_width=True, key="first_day_input_button") :
+        st.session_state.first_day = input_first_day
+        st.rerun()
+        # TODO SAVE
+    
+# endregion
+
 # endregion
 
 # endregion
@@ -530,7 +549,7 @@ def display_calendar(period: pd.DataFrame) :
     for i, row in period.iterrows() :
 
         if row["is_ignored"] :
-            bg_color = "#949494"
+            bg_color = "#bbbbbb"
         else : 
             bg_color = "white"
 
@@ -781,7 +800,7 @@ def display_budget_ponctuals_editor() :
     if button_save_budget_ponctuals :
         combine_and_save_csv(
             modified_df=edited_budget_ponctuals, 
-            path=BUDGET_PERIODICS_PATH,
+            path=BUDGET_PONCTUALS_PATH,
         )
 
 # endregion
