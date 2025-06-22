@@ -178,6 +178,7 @@ if PERIODICS_PATH.exists() :
     ISOLATED_PERIODICS = FULL_PERIODICS[~periodics_in_period_mask].reset_index(drop=True) 
 
 else :
+    # TODO add "id" column
     FULL_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
     PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
     ISOLATED_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
@@ -689,6 +690,7 @@ def display_real_periodics_editor() :
 
     st.subheader("Virements/Prélèvements périodiques")
 
+    # TODO Exclude the 'id' column and then merge back + add missing ids
     edited_periodics = st.data_editor(
         PERIODICS,
         num_rows="dynamic",
@@ -955,7 +957,7 @@ def display_daily_balance(
 
     fig.update_xaxes(showgrid=True)
     fig.update_layout(
-        title="Balance de la période",
+        title=f"Balance de la période : {daily_balance.iloc[-1]["balance"] - st.session_state.offset:+.2f} {MONEY_SYMBOL}",
         xaxis_title="Date",
         yaxis_title="Balance",
         legend=dict(
@@ -1081,7 +1083,9 @@ def run_ui(
             display_monthly_stats()
 
     with st.sidebar :
-        # TODO Afficher valeure finale
+        
+        last_bal = daily_balance.iloc[-1]
+        st.header(f"Solde au {last_bal["date"].strftime("%d/%m/%Y")} : {last_bal["balance"]:+.2f} {MONEY_SYMBOL}")
 
         display_daily_balance(
             daily_balance=daily_balance,
@@ -1103,9 +1107,9 @@ if __name__ == '__main__' :
 
 # region |---| Offset
 
-    offset = 0.
+    st.session_state.offset = 0.
     if not st.session_state.ref_balance is None :
-        offset = get_offset(
+        st.session_state.offset = get_offset(
             ref_day=st.session_state.ref_day,
             ref_balance=st.session_state.ref_balance,
             target_day=st.session_state.period_start,
@@ -1133,7 +1137,7 @@ if __name__ == '__main__' :
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
         aggregated_period=period,
-        start_offset=offset
+        start_offset=st.session_state.offset
     )
 
 # endregion
@@ -1152,7 +1156,7 @@ if __name__ == '__main__' :
             period_start=st.session_state.period_start,
             period_end=st.session_state.period_end,
             aggregated_period=budget_period,
-            start_offset=offset
+            start_offset=st.session_state.offset
         )
     else :
         budget_period = None

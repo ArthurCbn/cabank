@@ -58,7 +58,7 @@ def get_all_periodics_in_period(
                 safe_get(periodic, "description", "NO DESCRIPTION"),
                 safe_get(periodic, "amount", 0),
                 occurence,
-                i
+                i # TODO get the id
             ]
     
     return all_periodics
