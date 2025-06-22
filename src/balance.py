@@ -106,9 +106,10 @@ def get_budget_period(
         budget_periodics: pd.DataFrame,
         budget_ponctuals: pd.DataFrame) -> pd.DataFrame :
     
-    budget_periodics.loc[:, "amount"] *= -1
+    corrected_budget_periodics = budget_periodics.copy()
+    corrected_budget_periodics.loc[:, "amount"] *= -1
 
-    return get_aggregated_period(period_start, period_end, safe_concat(periodics, budget_periodics), budget_ponctuals)
+    return get_aggregated_period(period_start, period_end, safe_concat(periodics, corrected_budget_periodics), budget_ponctuals)
 
 # endregion
 

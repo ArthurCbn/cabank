@@ -356,7 +356,6 @@ def display_offset() :
             st.session_state.ref_day = datetime.combine(ref_day_input, time.min) # TODO dumbproof the date
             st.session_state.ref_balance = ref_balance_input
             st.rerun()
-            # BUG changing calib messes up the budget
 
 # endregion
 
