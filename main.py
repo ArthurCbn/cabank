@@ -1084,8 +1084,13 @@ def run_ui(
 
     with st.sidebar :
         
+        # TODO Display 1 or 2 concatenated bars next to each other instead
         last_bal = daily_balance.iloc[-1]
-        st.header(f"Solde au {last_bal["date"].strftime("%d/%m/%Y")} : {last_bal["balance"]:+.2f} {MONEY_SYMBOL}")
+        st.header(f"Solde réel au {last_bal["date"].strftime("%d/%m/%Y")} : {last_bal["balance"]:+.2f} {MONEY_SYMBOL}")
+        
+        if not budget_balance is None :
+            last_budget_bal = budget_balance.iloc[-1]
+            st.header(f"Solde budget {st.session_state.budget} au {last_budget_bal["date"].strftime("%d/%m/%Y")} : {last_budget_bal["balance"]:+.2f} {MONEY_SYMBOL}")
 
         display_daily_balance(
             daily_balance=daily_balance,
