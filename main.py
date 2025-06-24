@@ -94,14 +94,9 @@ calibration = CONFIG.get("calibration", {})
 REF_DAY = calibration.get("ref_day", None)
 if not REF_DAY is None :
     REF_DAY = datetime.strptime(REF_DAY, "%Y-%m-%d")
+st.session_state.ref_day = REF_DAY
 
-REF_BALANCE = calibration.get("ref_balance", None)
-
-if "ref_day" not in st.session_state :
-    st.session_state.ref_day = REF_DAY
-
-if "ref_balance" not in st.session_state :
-    st.session_state.ref_balance = REF_BALANCE
+st.session_state.ref_balance = calibration.get("ref_balance", None)
 
 # endregion
 
@@ -193,9 +188,8 @@ else :
     PERIODICS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
     ISOLATED_PERIODICS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
 
-
-if not "periodics" in st.session_state :
-    st.session_state.periodics = PERIODICS.copy(deep=True)
+if "periodics" not in st.session_state :
+    st.session_state.periodics = PERIODICS
 
 # endregion
 
@@ -210,6 +204,7 @@ if PONCTUALS_PATH.exists() :
     FULL_PONCTUALS["description"] = FULL_PONCTUALS["description"].fillna("").astype(str)
     FULL_PONCTUALS["amount"] = FULL_PONCTUALS["amount"].astype(float)
     FULL_PONCTUALS["date"] = format_datetime(FULL_PONCTUALS["date"])
+    FULL_PONCTUALS["id"] = FULL_PONCTUALS["id"].astype(str)
 
     ponctuals_in_period_mask =  (
         ( format_datetime(FULL_PONCTUALS["date"]) >= st.session_state.period_start ) &
@@ -225,12 +220,13 @@ else :
         "category": "str",
         "description": "str", 
         "amount": "float64", 
+        "id": "str"
     }
     FULL_PONCTUALS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
     PONCTUALS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
     ISOLATED_PONCTUALS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
 
-if not "ponctuals" in st.session_state :
+if "ponctuals" not in st.session_state :
     st.session_state.ponctuals = PONCTUALS
 
 # endregion
@@ -239,7 +235,7 @@ if not "ponctuals" in st.session_state :
 
 # region |---|---|---| Periodics
 
-BUDGET_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
+BUDGET_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months", "id"])
 
 if not CURRENT_BUDGET_PATH is None :
     BUDGET_PERIODICS_PATH = CURRENT_BUDGET_PATH / "periodics.csv"
@@ -254,15 +250,16 @@ BUDGET_PERIODICS["first"] = format_datetime(BUDGET_PERIODICS["first"])
 BUDGET_PERIODICS["last"] = format_datetime(BUDGET_PERIODICS["last"])
 BUDGET_PERIODICS["days"] = BUDGET_PERIODICS["days"].fillna(0).astype(int)
 BUDGET_PERIODICS["months"] = BUDGET_PERIODICS["months"].fillna(0).astype(int)
+BUDGET_PERIODICS["id"] = BUDGET_PERIODICS["id"].astype(str)
 
-if not "budget_periodics" in st.session_state :
+if "budget_periodics" not in st.session_state :
     st.session_state.budget_periodics = BUDGET_PERIODICS
 
 # endregion
 
 # region |---|---|---| Ponctuals
 
-BUDGET_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
+BUDGET_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount", "id"])
 if not CURRENT_BUDGET_PATH is None :
     BUDGET_PONCTUALS_PATH = CURRENT_BUDGET_PATH / "ponctuals.csv"
     if BUDGET_PONCTUALS_PATH.exists() :
@@ -273,8 +270,9 @@ BUDGET_PONCTUALS["category"] = BUDGET_PONCTUALS["category"].astype(str)
 BUDGET_PONCTUALS["description"] = BUDGET_PONCTUALS["description"].fillna("").astype(str)
 BUDGET_PONCTUALS["amount"] = BUDGET_PONCTUALS["amount"].astype(float)
 BUDGET_PONCTUALS["date"] = format_datetime(BUDGET_PONCTUALS["date"])
+BUDGET_PONCTUALS["id"] = BUDGET_PONCTUALS["id"].astype(str)
 
-if not "budget_ponctuals" in st.session_state :
+if "budget_ponctuals" not in st.session_state :
     st.session_state.budget_ponctuals = BUDGET_PONCTUALS
 
 # endregion
@@ -312,7 +310,6 @@ def display_settings() :
 
 # region |---|---|---| User
 
-    # BUG when changing user : need a second refresh to be taken into acount
     user_input = col_settings[0].selectbox(
         "Compte",
         options=ALL_USERS,
@@ -320,10 +317,11 @@ def display_settings() :
         accept_new_options=True,
         index=( ALL_USERS.index(st.session_state.user) if st.session_state.user in ALL_USERS else None ),
     )
-    if user_input != st.session_state.user :
+
+    if st.session_state.user != user_input :
         st.session_state.user = user_input
         st.rerun()
-
+     
 # endregion
 
 # region |---|---|---| Period
@@ -658,8 +656,11 @@ def display_real_ponctuals_editor() :
 
     st.subheader("Dépenses ponctuelles")
 
-    edited_ponctuals = st.data_editor(
-        PONCTUALS,
+    ponctuals_ids = PONCTUALS["id"]
+    ponctuals_to_edit = PONCTUALS[["date", "category", "description", "amount"]]
+
+    edited = st.data_editor(
+        ponctuals_to_edit,
         num_rows="dynamic",
         use_container_width=True,
         key="edited_ponctuals",
@@ -690,13 +691,18 @@ def display_real_ponctuals_editor() :
         },
         hide_index=True,
     )
+    edited_with_id = edited.join(ponctuals_ids, how="left")
 
-    st.session_state.ponctuals = edited_ponctuals
+    for i, row in edited_with_id.iterrows() :
+        if pd.isna(row["id"]) :
+            edited_with_id.loc[i, "id"] = str(uuid.uuid4())
 
+    st.session_state.ponctuals = edited_with_id
+    
     button_save_ponctuals = st.button("Sauvegarder", key="button_save_ponctuals")
     if button_save_ponctuals :
         combine_and_save_csv(
-            modified_df=edited_ponctuals, 
+            modified_df=edited_with_id, 
             isolated_df=ISOLATED_PONCTUALS, 
             path=PONCTUALS_PATH
         )
@@ -709,11 +715,9 @@ def display_real_periodics_editor() :
 
     st.subheader("Virements/Prélèvements périodiques")
 
-    periodics_ids = PERIODICS["id"].copy()
-    periodics_to_edit = PERIODICS[["category", "description", "amount", "first", "last", "days", "months"]].copy()
+    periodics_ids = PERIODICS["id"]
+    periodics_to_edit = PERIODICS[["category", "description", "amount", "first", "last", "days", "months"]]
 
-    # BUG MAJOR When Deleting a row AFTER having added a new one, it freezes ?
-    # THIS BUG AFFECTS EVERY DATA EDITOR (90% sure)
     edited = st.data_editor(
         periodics_to_edit,
         num_rows="dynamic",
@@ -769,13 +773,12 @@ def display_real_periodics_editor() :
         },
         hide_index=True,
     )
-    st.write(edited)
     edited_with_id = edited.join(periodics_ids, how="left")
 
     for i, row in edited_with_id.iterrows() :
         if pd.isna(row["id"]) :
             edited_with_id.loc[i, "id"] = str(uuid.uuid4())
-    st.write(edited_with_id)
+    
     st.session_state.periodics = edited_with_id
     
     button_save_periodics = st.button("Sauvegarder", key="button_save_periodics")
@@ -809,6 +812,7 @@ def display_budget_selection() :
     if budget_input != st.session_state.budget :
         st.session_state.budget = budget_input
         st.rerun()
+    # TODO More explicit handling, possibility to rename a budget, etc.
 
 # endregion
 
@@ -818,8 +822,11 @@ def display_budget_ponctuals_editor() :
 
     st.subheader("Dépenses ponctuelles budgettisées")
 
-    edited_budget_ponctuals = st.data_editor(
-        BUDGET_PONCTUALS,
+    budget_ponctuals_ids = BUDGET_PONCTUALS["id"]
+    budget_ponctuals_to_edit = BUDGET_PONCTUALS[["date", "category", "description", "amount"]]
+
+    edited = st.data_editor(
+        budget_ponctuals_to_edit,
         num_rows="dynamic",
         use_container_width=True,
         key="edited_budget_ponctuals",
@@ -850,13 +857,18 @@ def display_budget_ponctuals_editor() :
         },
         hide_index=True,
     )
+    edited_with_id = edited.join(budget_ponctuals_ids, how="left")
 
-    st.session_state.budget_ponctuals = edited_budget_ponctuals
+    for i, row in edited_with_id.iterrows() :
+        if pd.isna(row["id"]) :
+            edited_with_id.loc[i, "id"] = str(uuid.uuid4())
+
+    st.session_state.budget_ponctuals = edited_with_id
 
     button_save_budget_ponctuals = st.button("Sauvegarder", key="button_save_budget_ponctuals")
     if button_save_budget_ponctuals :
         combine_and_save_csv(
-            modified_df=edited_budget_ponctuals, 
+            modified_df=edited_with_id, 
             path=BUDGET_PONCTUALS_PATH,
         )
 
@@ -868,8 +880,11 @@ def display_budget_periodics_editor() :
 
     st.subheader("Budget")
 
-    edited_budget_periodics = st.data_editor(
-        BUDGET_PERIODICS,
+    budget_periodics_ids = BUDGET_PERIODICS["id"]
+    budget_periodics_to_edit = BUDGET_PERIODICS[["category", "description", "amount", "first", "last", "days", "months"]]
+
+    edited = st.data_editor(
+        budget_periodics_to_edit,
         num_rows="dynamic",
         use_container_width=True,
         key="edited_budget_periodics",
@@ -923,17 +938,21 @@ def display_budget_periodics_editor() :
         },
         hide_index=True,
     )
+    edited_with_id = edited.join(budget_periodics_ids, how="left")
 
-    st.session_state.budget_periodics = edited_budget_periodics
+    for i, row in edited_with_id.iterrows() :
+        if pd.isna(row["id"]) :
+            edited_with_id.loc[i, "id"] = str(uuid.uuid4())
+
+    st.session_state.budget_periodics = edited_with_id
 
     button_save_budget_periodics = st.button("Sauvegarder", key="button_save_budget_periodics")
     if button_save_budget_periodics :
         combine_and_save_csv(
-            modified_df=edited_budget_periodics, 
+            modified_df=edited_with_id, 
             isolated_df=None, 
             path=BUDGET_PERIODICS_PATH
         )
-
 
 # endregion
 
@@ -1058,15 +1077,15 @@ def display_amount_by_cat(
 
 # endregion
 
-# region |---| Main
+# region |---| MAIN
 
-def run_ui(
-        period: pd.DataFrame,
-        daily_balance: pd.DataFrame,
-        budget_period: pd.DataFrame,
-        budget_balance: pd.DataFrame) :
+# region |---|---| Input UI
 
-    st.set_page_config(layout="wide")
+def run_input_ui_and_get_mixed_placeholder() :
+    """
+    This part of the UI is exclusively for inputs, so it must be ran prior to the logic kernel.
+    Since some mixed widget are displayed alongside input widgets (calendar for instance), we return their placeholders.
+    """
 
     col_title = st.columns([2, 8], vertical_alignment="top")
 
@@ -1088,9 +1107,6 @@ def run_ui(
 
         tab_cal, tab_real, tab_budget, tab_stats = st.tabs(["Calendrier des dépenses", "Réel", "Budget", "Statistiques mensuelles"])
 
-        with tab_cal :
-            display_calendar(period)
-
         with tab_real :
             with st.expander("Virements/Prélèvements périodiques") :
                 display_real_periodics_editor()
@@ -1107,9 +1123,30 @@ def run_ui(
                     display_budget_ponctuals_editor()
 
                 display_budget_periodics_editor()
-            
-        with tab_stats :
-            display_monthly_stats()
+    
+    return tab_cal, tab_stats
+
+# endregion
+
+# region |---|---| Output UI
+
+def run_output_ui(
+        tab_cal,
+        tab_stats,
+        period: pd.DataFrame,
+        daily_balance: pd.DataFrame,
+        budget_period: pd.DataFrame,
+        budget_balance: pd.DataFrame) :
+    """
+    This part of the UI is exclusively for outputs, so it must be ran AFTER the logic kernel.
+    Since some mixed widget are displayed alongside input widgets (calendar for instance), we take their placeholders in args.
+    """
+
+    with tab_cal :
+        display_calendar(period)
+    
+    with tab_stats : 
+        display_monthly_stats()
 
     with st.sidebar :
         
@@ -1134,10 +1171,16 @@ def run_ui(
 
 # endregion
 
+# endregion
+
 
 # region MAIN
 
 if __name__ == '__main__' :
+
+    st.set_page_config(layout="wide")
+
+    tab_cal, tab_stats = run_input_ui_and_get_mixed_placeholder()
 
 # region |---| Offset
 
@@ -1197,8 +1240,10 @@ if __name__ == '__main__' :
         budget_balance = None
 
 # endregion
-
-    run_ui(
+    
+    run_output_ui(
+        tab_cal=tab_cal,
+        tab_stats=tab_stats,
         period=period,
         daily_balance=daily_balance,
         budget_period=budget_period,
