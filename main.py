@@ -161,32 +161,41 @@ if PERIODICS_PATH.exists() :
     FULL_PERIODICS = pd.read_csv(PERIODICS_PATH)
 
     # Typing
-    FULL_PERIODICS["category"].astype(str)
+    FULL_PERIODICS["category"] = FULL_PERIODICS["category"].astype(str)
     FULL_PERIODICS["description"] = FULL_PERIODICS["description"].fillna("").astype(str)
-    FULL_PERIODICS["amount"].astype(float)
+    FULL_PERIODICS["amount"] = FULL_PERIODICS["amount"].astype(float)
     FULL_PERIODICS["first"] = format_datetime(FULL_PERIODICS["first"])
     FULL_PERIODICS["last"] = format_datetime(FULL_PERIODICS["last"])
     FULL_PERIODICS["days"] = FULL_PERIODICS["days"].fillna(0).astype(int)
     FULL_PERIODICS["months"] = FULL_PERIODICS["months"].fillna(0).astype(int)
+    FULL_PERIODICS["id"] = FULL_PERIODICS["id"].fillna(uuid.uuid4()).astype(str)
 
     periodics_in_period_mask =  (
         ( format_datetime(FULL_PERIODICS["first"]) < st.session_state.period_end ) &
         ( format_datetime(FULL_PERIODICS["last"])  >= st.session_state.period_start )
     )
 
-    PERIODICS = FULL_PERIODICS[periodics_in_period_mask].reset_index(drop=True) 
-    ISOLATED_PERIODICS = FULL_PERIODICS[~periodics_in_period_mask].reset_index(drop=True) 
+    PERIODICS = FULL_PERIODICS[periodics_in_period_mask].reset_index(drop=True)
+    ISOLATED_PERIODICS = FULL_PERIODICS[~periodics_in_period_mask].reset_index(drop=True)
 
 else :
-    # TODO add "id" column
-    FULL_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
-    PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
-    ISOLATED_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months"])
-
+    columns = {
+        "category": "str",
+        "description": "str", 
+        "amount": "float64", 
+        "first": "datetime64[ns]", 
+        "last": "datetime64[ns]", 
+        "days": "int64", 
+        "months": "int64", 
+        "id": "str"
+    }
+    FULL_PERIODICS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
+    PERIODICS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
+    ISOLATED_PERIODICS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
 
 
 if not "periodics" in st.session_state :
-    st.session_state.periodics = PERIODICS
+    st.session_state.periodics = PERIODICS.copy(deep=True)
 
 # endregion
 
@@ -197,9 +206,9 @@ if PONCTUALS_PATH.exists() :
     FULL_PONCTUALS = pd.read_csv(PONCTUALS_PATH)
 
     # Typing
-    FULL_PONCTUALS["category"].astype(str)
+    FULL_PONCTUALS["category"] = FULL_PONCTUALS["category"].astype(str)
     FULL_PONCTUALS["description"] = FULL_PONCTUALS["description"].fillna("").astype(str)
-    FULL_PONCTUALS["amount"].astype(float)
+    FULL_PONCTUALS["amount"] = FULL_PONCTUALS["amount"].astype(float)
     FULL_PONCTUALS["date"] = format_datetime(FULL_PONCTUALS["date"])
 
     ponctuals_in_period_mask =  (
@@ -211,9 +220,15 @@ if PONCTUALS_PATH.exists() :
     ISOLATED_PONCTUALS = FULL_PONCTUALS[~ponctuals_in_period_mask].reset_index(drop=True) 
 
 else :
-    FULL_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
-    PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
-    ISOLATED_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount"])
+    columns = {
+        "date": "datetime64[ns]", 
+        "category": "str",
+        "description": "str", 
+        "amount": "float64", 
+    }
+    FULL_PONCTUALS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
+    PONCTUALS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
+    ISOLATED_PONCTUALS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
 
 if not "ponctuals" in st.session_state :
     st.session_state.ponctuals = PONCTUALS
@@ -232,9 +247,9 @@ if not CURRENT_BUDGET_PATH is None :
         BUDGET_PERIODICS = pd.read_csv(BUDGET_PERIODICS_PATH)
 
 # Typing
-BUDGET_PERIODICS["category"].astype(str)
+BUDGET_PERIODICS["category"] = BUDGET_PERIODICS["category"].astype(str)
 BUDGET_PERIODICS["description"] = BUDGET_PERIODICS["description"].fillna("").astype(str)
-BUDGET_PERIODICS["amount"].astype(float)
+BUDGET_PERIODICS["amount"] = BUDGET_PERIODICS["amount"].astype(float)
 BUDGET_PERIODICS["first"] = format_datetime(BUDGET_PERIODICS["first"])
 BUDGET_PERIODICS["last"] = format_datetime(BUDGET_PERIODICS["last"])
 BUDGET_PERIODICS["days"] = BUDGET_PERIODICS["days"].fillna(0).astype(int)
@@ -254,9 +269,9 @@ if not CURRENT_BUDGET_PATH is None :
         BUDGET_PONCTUALS = pd.read_csv(BUDGET_PONCTUALS_PATH)
 
 # Typing
-BUDGET_PONCTUALS["category"].astype(str)
+BUDGET_PONCTUALS["category"] = BUDGET_PONCTUALS["category"].astype(str)
 BUDGET_PONCTUALS["description"] = BUDGET_PONCTUALS["description"].fillna("").astype(str)
-BUDGET_PONCTUALS["amount"].astype(float)
+BUDGET_PONCTUALS["amount"] = BUDGET_PONCTUALS["amount"].astype(float)
 BUDGET_PONCTUALS["date"] = format_datetime(BUDGET_PONCTUALS["date"])
 
 if not "budget_ponctuals" in st.session_state :
@@ -297,13 +312,17 @@ def display_settings() :
 
 # region |---|---|---| User
 
-    user = col_settings[0].selectbox(
+    # BUG when changing user : need a second refresh to be taken into acount
+    user_input = col_settings[0].selectbox(
         "Compte",
         options=ALL_USERS,
-        key="user",
+        key="user_input",
         accept_new_options=True,
         index=( ALL_USERS.index(st.session_state.user) if st.session_state.user in ALL_USERS else None ),
     )
+    if user_input != st.session_state.user :
+        st.session_state.user = user_input
+        st.rerun()
 
 # endregion
 
@@ -614,7 +633,7 @@ def display_calendar(period: pd.DataFrame) :
         "eventOrder": ["-absolute_amount"],
         "eventTextColor": "black"
     }
-    # BUG when doing actions on other tabs
+    # BUG when doing actions on other tabs : calendar disappears
     calendar_response = calendar(
         events=events, 
         options=calendar_options, 
@@ -690,9 +709,13 @@ def display_real_periodics_editor() :
 
     st.subheader("Virements/Prélèvements périodiques")
 
-    # TODO Exclude the 'id' column and then merge back + add missing ids
-    edited_periodics = st.data_editor(
-        PERIODICS,
+    periodics_ids = PERIODICS["id"].copy()
+    periodics_to_edit = PERIODICS[["category", "description", "amount", "first", "last", "days", "months"]].copy()
+
+    # BUG MAJOR When Deleting a row AFTER having added a new one, it freezes ?
+    # THIS BUG AFFECTS EVERY DATA EDITOR (90% sure)
+    edited = st.data_editor(
+        periodics_to_edit,
         num_rows="dynamic",
         use_container_width=True,
         key="edited_periodics",
@@ -746,13 +769,19 @@ def display_real_periodics_editor() :
         },
         hide_index=True,
     )
+    st.write(edited)
+    edited_with_id = edited.join(periodics_ids, how="left")
 
-    st.session_state.periodics = edited_periodics
-
+    for i, row in edited_with_id.iterrows() :
+        if pd.isna(row["id"]) :
+            edited_with_id.loc[i, "id"] = str(uuid.uuid4())
+    st.write(edited_with_id)
+    st.session_state.periodics = edited_with_id
+    
     button_save_periodics = st.button("Sauvegarder", key="button_save_periodics")
     if button_save_periodics :
         combine_and_save_csv(
-            modified_df=edited_periodics, 
+            modified_df=edited_with_id, 
             isolated_df=ISOLATED_PERIODICS, 
             path=PERIODICS_PATH
         )
@@ -1023,7 +1052,7 @@ def display_amount_by_cat(
 
     st.plotly_chart(fig)
     
-    # TODO Donut
+    # TODO Donut plot
 
 # endregion
 
@@ -1084,7 +1113,7 @@ def run_ui(
 
     with st.sidebar :
         
-        # TODO Display 1 or 2 concatenated bars next to each other instead
+        # TODO waterfall chart instead (either 2 or one but where we see the offset relative to budget)
         last_bal = daily_balance.iloc[-1]
         st.header(f"Solde réel au {last_bal["date"].strftime("%d/%m/%Y")} : {last_bal["balance"]:+.2f} {MONEY_SYMBOL}")
         

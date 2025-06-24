@@ -58,7 +58,7 @@ def get_all_periodics_in_period(
                 safe_get(periodic, "description", "NO DESCRIPTION"),
                 safe_get(periodic, "amount", 0),
                 occurence,
-                i # TODO get the id
+                safe_get(periodic, "id", None)
             ]
     
     return all_periodics
@@ -83,9 +83,11 @@ def get_aggregated_period(
     period_periodics = get_all_periodics_in_period(period_start, period_end, periodics)
 
     period = safe_concat(period_items, period_periodics).reset_index(drop=True)
-
+    
     if not period.empty :
         period.loc[:, "is_ignored"] = False
+    else :
+        period["is_ignored"] = pd.Series(dtype="bool")
 
     return period 
 
