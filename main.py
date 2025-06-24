@@ -193,6 +193,22 @@ if "periodics" not in st.session_state :
 
 # endregion
 
+# region |---|---| Ignore periodic
+
+IGNORE_PERIODIC_OCCURENCES_PATH = USER_PATH / "ignore_periodic_occurences.json"
+if IGNORE_PERIODIC_OCCURENCES_PATH.exists() :
+
+    with open(IGNORE_PERIODIC_OCCURENCES_PATH, "r") as f :
+        IGNORE_PERIODIC_OCCURENCES = json.load(f)
+    
+else :
+    IGNORE_PERIODIC_OCCURENCES = {}
+
+if "ignore_periodics" not in st.session_state :
+    st.session_state.ignore_periodics = IGNORE_PERIODIC_OCCURENCES
+
+# endregion
+
 # region |---|---| Ponctuals
 
 PONCTUALS_PATH = USER_PATH / "ponctuals.csv"
@@ -289,9 +305,6 @@ if "calendar_state" not in st.session_state :
 
 if "calendar_events" not in st.session_state :
     st.session_state.calendar_events = []
-
-if "ignore_periodics" not in st.session_state :
-    st.session_state.ignore_periodics = {}
 
 # endregion
 
@@ -565,7 +578,9 @@ def display_calendar(period: pd.DataFrame) :
                         if is_periodic_occurence_ignored(date, p_id, st.session_state.ignore_periodics) :
                             st.session_state.ignore_periodics[p_id].remove(date)
                     
-                    # TODO Write this in a file
+                    with open(IGNORE_PERIODIC_OCCURENCES_PATH, "w") as f :
+                        json.dump(st.session_state.ignore_periodics, f, indent=4)
+
                     st.session_state.calendar_state += 1
                     st.rerun()
 

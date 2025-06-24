@@ -60,7 +60,7 @@ def is_periodic_occurence_ignored(
 
 def apply_ignore_to_period(
         period: pd.DataFrame,
-        ignore_periodics: dict[int, list[str]]) -> pd.DataFrame :
+        ignore_periodics: dict[str, list[str]]) -> pd.DataFrame :
     
     def _is_row_ignored(
             row: pd.Series,
