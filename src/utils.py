@@ -2,6 +2,7 @@ import pandas as pd
 from typing import Any
 from datetime import datetime
 from pathlib import Path
+import plotly.graph_objects as go
 
 
 def safe_get(
@@ -87,3 +88,50 @@ def update_category_name(
         if "category" in df.columns :
             df.loc[:, "category"] = df["category"].replace(old_name, new_name)
             df.to_csv(data_file, index=False)
+
+
+def plot_custom_waterfall(
+        fig: go.Figure,
+        categories: list[str],
+        amounts: list[float],
+        colors: list[str]) :
+    
+    y_base = []
+    current = 0
+    for amt in amounts[:-1]:
+        y_base.append(current)
+        current += amt
+
+    # Last bar is a total
+    y_base.append(0)
+
+    bar_heights = amounts.copy()
+
+    for i in range(len(categories)):
+        fig.add_trace(go.Bar(
+            x=[categories[i]],
+            y=[bar_heights[i]],
+            base=[y_base[i]],
+            marker=dict(color=colors[i]),
+            name=categories[i],
+            hovertemplate=f"{categories[i]}: {amounts[i]:,.0f}<extra></extra>"
+        ))
+
+    for i in range(len(categories) - 2):
+        fig.add_shape(
+            type="line",
+            x0=i + 0.4,
+            x1=i + 0.6,
+            y0=y_base[i] + bar_heights[i],
+            y1=y_base[i + 1],
+            line=dict(color="black", width=1)
+        )
+
+    fig.add_shape(
+        type="line",
+        x0=len(categories)-2 + 0.4,
+        x1=len(categories)-2 + 0.6,
+        y0=y_base[-2] + bar_heights[-2],
+        y1=bar_heights[-1],
+        line=dict(color="black", width=1)
+    )

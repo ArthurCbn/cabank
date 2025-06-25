@@ -20,6 +20,7 @@ from src.utils import (
     is_periodic_occurence_ignored,
     apply_ignore_to_period,
     update_category_name,
+    plot_custom_waterfall
 )
 from src.balance import (
     get_real_period,
@@ -1037,6 +1038,58 @@ def display_daily_balance(
 
 # endregion
 
+# region |---|---| Waterfall
+
+def display_waterfall(
+        period: pd.DataFrame,
+        budget_period: pd.DataFrame|None=None
+) :
+
+    def _sort_waterfall(row: pd.Series) :
+        return row.apply(
+            lambda x: ( max(x, 0), max(-x, 0) )
+        )
+
+    # TODO display budget as well ?
+    spent_real = period[( period["is_ignored"] == False ) & ( period["category"].isin(st.session_state.all_categories) )]
+    spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().reset_index()
+
+    sorted_spent_real_stats = spent_real_stats.sort_values(by="amount", key=_sort_waterfall, ascending=False)
+
+    categories = list(sorted_spent_real_stats["category"])
+    amounts = list(sorted_spent_real_stats["amount"])
+    colors = [st.session_state.all_categories[cat] for cat in categories]
+
+    # Insert "Start" bar at the beginning
+    categories.insert(0, f"{st.session_state.period_start.strftime("%d/%m/%Y")}")
+    amounts.insert(0, float(st.session_state.offset))
+    colors.insert(0, "black")
+
+    # Append total bar at the end
+    categories.append(f"{st.session_state.period_end.strftime("%d/%m/%Y")}")
+    amounts.append(sum(amounts))
+    colors.append("black")
+
+    fig = go.Figure()
+    
+    plot_custom_waterfall(
+        fig=fig,
+        categories=categories,
+        amounts=amounts,
+        colors=colors
+    )
+
+    fig.update_layout(
+        title="Détail de la balance",
+        barmode='stack',
+        showlegend=False,
+        yaxis=dict(title="Montant"),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# endregion
+
 # region |---|---| Stats
 
 def display_amount_by_cat(
@@ -1165,10 +1218,6 @@ def run_output_ui(
 
     with st.sidebar :
         
-        # TODO waterfall chart instead (either 2 or one but where we see the offset relative to budget)
-        last_bal = daily_balance.iloc[-1]
-        st.header(f"Solde réel au {last_bal["date"].strftime("%d/%m/%Y")} : {last_bal["balance"]:+.2f} {MONEY_SYMBOL}")
-        
         if not budget_balance is None :
             last_budget_bal = budget_balance.iloc[-1]
             st.header(f"Solde budget {st.session_state.budget} au {last_budget_bal["date"].strftime("%d/%m/%Y")} : {last_budget_bal["balance"]:+.2f} {MONEY_SYMBOL}")
@@ -1177,9 +1226,13 @@ def run_output_ui(
             daily_balance=daily_balance,
             budget_balance=budget_balance,    
         )
-        display_amount_by_cat(
+        # display_amount_by_cat(
+        #     period=period,
+        #     budget_period=budget_period,
+        # )
+        display_waterfall(
             period=period,
-            budget_period=budget_period,
+            budget_period=budget_period
         )
 
 # endregion
@@ -1193,7 +1246,35 @@ def run_output_ui(
 
 if __name__ == '__main__' :
 
+# region |---| Custom streamlit display
+
     st.set_page_config(layout="wide")
+
+    st.markdown("""
+        <style>
+            [data-testid="stSidebarHeader"] {
+                display: none;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+        <style>
+            [data-testid="stToolbar"] {
+                display: none;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+        <style>
+            [data-testid="stMainBlockContainer"] {
+                padding-top: 0rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+# endregion
 
     tab_cal, tab_stats = run_input_ui_and_get_mixed_placeholder()
 
