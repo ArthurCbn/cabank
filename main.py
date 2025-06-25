@@ -539,6 +539,7 @@ def display_config() :
 
 # region |---| Calendar
 
+@st.fragment
 def display_calendar(period: pd.DataFrame) :
     
 # region |---|---| Pop-up
@@ -647,7 +648,7 @@ def display_calendar(period: pd.DataFrame) :
         "eventOrder": ["-absolute_amount"],
         "eventTextColor": "black"
     }
-    # BUG when doing actions on other tabs : calendar disappears
+    
     calendar_response = calendar(
         events=events, 
         options=calendar_options, 
@@ -659,6 +660,10 @@ def display_calendar(period: pd.DataFrame) :
         event_id = int(event["event"]["id"])
         clicked_expense = period.iloc[event_id]
         _display_expense_details(event_id, clicked_expense)
+    
+    if st.button("Rafraîchir le calendrier") :
+        st.session_state.calendar_state += 1
+        st.rerun(scope="fragment")
 
 # endregion
 
