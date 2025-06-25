@@ -1054,11 +1054,11 @@ def display_waterfall(
             lambda x: ( max(x, 0), max(-x, 0) )
         )
 
-    spent_real = period[( period["is_ignored"] == False ) & ( period["category"].isin(st.session_state.all_categories) )]
+    spent_real = period[( period["is_ignored"] == False )]
     spent_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().rename(columns={"amount": "amount_real"})
 
     if not budget_period is None :
-        spent_budget = budget_period[( budget_period["is_ignored"] == False ) & ( budget_period["category"].isin(st.session_state.all_categories) )]
+        spent_budget = budget_period[( budget_period["is_ignored"] == False )]
         spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().rename(columns={"amount": "amount_budget"})
 
         spent_stats = spent_stats.join(spent_budget_stats, how="outer").fillna(0)
@@ -1067,7 +1067,7 @@ def display_waterfall(
 
     categories = list(sorted_spent_stats.index)
     amounts = list(sorted_spent_stats["amount_real"])
-    colors = [st.session_state.all_categories[cat] for cat in categories]
+    colors = [st.session_state.all_categories.get(cat, "black") for cat in categories]
         
     # Insert "Start" bar at the beginning
     categories.insert(0, f"{st.session_state.period_start.strftime("%d/%m/%Y")}")
@@ -1096,7 +1096,7 @@ def display_waterfall(
     )
 
     fig.update_layout(
-        title="Détail de la balance",
+        title="Détail de la balance" + (f" vs budget {st.session_state.budget}" if st.session_state.budget else ""),
         barmode='overlay',
         showlegend=False,
         yaxis=dict(title="Montant"),

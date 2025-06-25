@@ -187,9 +187,10 @@ def plot_custom_waterfall(
             y=[amounts_budget[i]],
             width=bar_width,
             base=[y_base_budget[i]],
-            marker=dict(color="gray"),
+            marker=dict(color=colors[i]),
             name=categories[i],
-            hovertemplate=f"{categories[i]}: {amounts_budget[i]:,.0f}<extra></extra>"
+            hovertemplate=f"{categories[i]}: {amounts_budget[i]:,.0f}<extra></extra>",
+            opacity=0.3
         ))
 
     # Draw first connector
