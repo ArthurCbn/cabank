@@ -1042,24 +1042,28 @@ def display_daily_balance(
 
 def display_waterfall(
         period: pd.DataFrame,
-        budget_period: pd.DataFrame|None=None
-) :
+        budget_period: pd.DataFrame|None=None) :
 
     def _sort_waterfall(row: pd.Series) :
         return row.apply(
             lambda x: ( max(x, 0), max(-x, 0) )
         )
 
-    # TODO display budget as well ?
     spent_real = period[( period["is_ignored"] == False ) & ( period["category"].isin(st.session_state.all_categories) )]
-    spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().reset_index()
+    spent_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().rename(columns={"amount": "amount_real"})
 
-    sorted_spent_real_stats = spent_real_stats.sort_values(by="amount", key=_sort_waterfall, ascending=False)
+    if not budget_period is None :
+        spent_budget = budget_period[( budget_period["is_ignored"] == False ) & ( budget_period["category"].isin(st.session_state.all_categories) )]
+        spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().rename(columns={"amount": "amount_budget"})
 
-    categories = list(sorted_spent_real_stats["category"])
-    amounts = list(sorted_spent_real_stats["amount"])
+        spent_stats = spent_stats.join(spent_budget_stats, how="outer").fillna(0)
+
+    sorted_spent_stats = spent_stats.sort_values(by="amount_real", key=_sort_waterfall, ascending=False)
+
+    categories = list(sorted_spent_stats.index)
+    amounts = list(sorted_spent_stats["amount_real"])
     colors = [st.session_state.all_categories[cat] for cat in categories]
-
+        
     # Insert "Start" bar at the beginning
     categories.insert(0, f"{st.session_state.period_start.strftime("%d/%m/%Y")}")
     amounts.insert(0, float(st.session_state.offset))
@@ -1070,20 +1074,32 @@ def display_waterfall(
     amounts.append(sum(amounts))
     colors.append("black")
 
+    amounts_budget = None
+    if not budget_period is None :
+        amounts_budget = list(sorted_spent_stats["amount_budget"])
+        amounts_budget.insert(0, float(st.session_state.offset))
+        amounts_budget.append(sum(amounts_budget))
+
     fig = go.Figure()
     
     plot_custom_waterfall(
         fig=fig,
         categories=categories,
         amounts=amounts,
+        amounts_budget=amounts_budget,
         colors=colors
     )
 
     fig.update_layout(
         title="Détail de la balance",
-        barmode='stack',
+        barmode='overlay',
         showlegend=False,
         yaxis=dict(title="Montant"),
+        xaxis=dict(
+            tickmode='array',
+            tickvals=list(range(len(categories))),
+            ticktext=categories,
+        ),
     )
 
     st.plotly_chart(fig, use_container_width=True)
