@@ -648,7 +648,7 @@ def display_calendar(period: pd.DataFrame) :
         "eventOrder": ["-absolute_amount"],
         "eventTextColor": "black"
     }
-    
+
     calendar_response = calendar(
         events=events, 
         options=calendar_options, 
@@ -1239,10 +1239,6 @@ def run_output_ui(
 
     with st.sidebar :
         
-        if not budget_balance is None :
-            last_budget_bal = budget_balance.iloc[-1]
-            st.header(f"Solde budget {st.session_state.budget} au {last_budget_bal["date"].strftime("%d/%m/%Y")} : {last_budget_bal["balance"]:+.2f} {MONEY_SYMBOL}")
-
         display_daily_balance(
             daily_balance=daily_balance,
             budget_balance=budget_balance,    
