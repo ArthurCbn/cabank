@@ -1,8 +1,15 @@
 {
     "categories": {
-        "Logement": "#ff0000", 
-        "Nourriture": "#008000", 
-        "Salaire": "#0000ff"
+        "Logement": "#00ffe8",
+        "Nourriture": "#fff331",
+        "Salaire": "#00007f",
+        "Epargne": "#ff0000",
+        "Transport": "#99ff00",
+        "Sortie": "#ff00eb",
+        "Service": "#ff8d00",
+        "Autre": "#8e8e8e",
+        "Achat": "#005a1d",
+        "Remboursement": "#460046"
     },
     "first_day": 1,
     "money_format": "euro",
