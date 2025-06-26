@@ -1304,7 +1304,8 @@ if __name__ == '__main__' :
             ref_balance=st.session_state.ref_balance,
             target_day=st.session_state.period_start,
             periodics=FULL_PERIODICS,
-            ponctuals=FULL_PONCTUALS
+            ponctuals=FULL_PONCTUALS,
+            ignore_periodics=st.session_state.ignore_periodics
         )
 
 # endregion

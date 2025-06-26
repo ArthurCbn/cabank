@@ -4,6 +4,7 @@ import pandas as pd
 from .utils import (
     safe_get,
     safe_concat,
+    apply_ignore_to_period,
 )
 
 
@@ -152,7 +153,8 @@ def get_offset(
         ref_balance: float,
         target_day: datetime,
         periodics: pd.DataFrame,
-        ponctuals: pd.DataFrame) -> float :
+        ponctuals: pd.DataFrame,
+        ignore_periodics: dict[str, list[str]]) -> float :
     """
     Keep in mind that balance on day D is at the end of day D.
     Here we want the offset at the START of day target_day. 2 situations :
@@ -197,6 +199,11 @@ def get_offset(
         periodics=periodics,
         ponctuals=ponctuals,
     )
+
+    past_period_adjusted = apply_ignore_to_period(
+        period=past_period,
+        ignore_periodics=ignore_periodics
+        )
 
     past_balance = get_daily_balance(
         period_start=ref_period_start,
