@@ -3,3 +3,4 @@
 !default_config.json
 __pycache__
 test.py
+venv/

@@ -6,7 +6,6 @@ import uuid
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 from enum import Enum
-import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import streamlit as st
 from typing import Any
@@ -1026,7 +1025,7 @@ def display_daily_balance(
 
     fig.update_xaxes(showgrid=True)
     fig.update_layout(
-        title=f"Balance de la période : {daily_balance.iloc[-1]["balance"] - st.session_state.offset:+.2f} {MONEY_SYMBOL}",
+        title=f"Balance de la période : {daily_balance.iloc[-1]['balance'] - st.session_state.offset:+.2f} {MONEY_SYMBOL}",
         xaxis_title="Date",
         yaxis_title="Balance",
         legend=dict(
@@ -1070,12 +1069,12 @@ def display_waterfall(
     colors = [st.session_state.all_categories.get(cat, "black") for cat in categories]
         
     # Insert "Start" bar at the beginning
-    categories.insert(0, f"{st.session_state.period_start.strftime("%d/%m/%Y")}")
+    categories.insert(0, f"{st.session_state.period_start.strftime('%d/%m/%Y')}")
     amounts.insert(0, float(st.session_state.offset))
     colors.insert(0, "black")
 
     # Append total bar at the end
-    categories.append(f"{st.session_state.period_end.strftime("%d/%m/%Y")}")
+    categories.append(f"{st.session_state.period_end.strftime('%d/%m/%Y')}")
     amounts.append(sum(amounts))
     colors.append("black")
 
