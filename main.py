@@ -553,6 +553,15 @@ def display_calendar(period: pd.DataFrame) :
 
         # Periodic => Possibility to ignore
         if ( p_id := expense["periodic_id"] ) is not None :
+            
+            # Display periodic details
+            periodic_search = st.session_state.periodics[st.session_state.periodics["id"] == p_id]
+            if len(periodic_search) == 0 :
+                st.write("Could not find periodic info...")
+            else :
+                periodic = periodic_search.iloc[0]
+                st.write(f"From **{periodic["first"].strftime("%d/%m/%Y")}** To **{periodic["last"].strftime("%d/%m/%Y")}**")
+                st.write(f"Periodicity : **{periodic["days"]} days**, **{periodic["months"]} months**")
 
             with st.form(key=f"ignore_form_{index}", border=False) :
                 
