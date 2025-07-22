@@ -4,7 +4,7 @@ import pandas as pd
 from .utils import (
     safe_get,
     safe_concat,
-    apply_ignore_to_period,
+    apply_modifs_to_period,
 )
 
 
@@ -73,7 +73,8 @@ def get_aggregated_period(
         period_start: datetime,
         period_end: datetime,
         periodics: pd.DataFrame,
-        ponctuals: pd.DataFrame) -> pd.DataFrame :
+        ponctuals: pd.DataFrame,
+        modify_periodic_occurences: dict[str, dict[str, float|None]]) -> pd.DataFrame :
 
     period_items = ponctuals[ponctuals.apply(lambda row: period_start <= row["date"] < period_end, axis=1)].copy()
     
@@ -90,16 +91,28 @@ def get_aggregated_period(
     else :
         period["is_ignored"] = pd.Series(dtype="bool")
 
-    return period 
+    adjusted_period = apply_modifs_to_period(
+        period=period,
+        modify_periodic_occurences=modify_periodic_occurences,
+    )
+
+    return adjusted_period 
 
 
 def get_real_period(
         period_start: datetime,
         period_end: datetime,
         periodics: pd.DataFrame,
-        ponctuals: pd.DataFrame) -> pd.DataFrame :
+        ponctuals: pd.DataFrame,
+        modify_periodic_occurences: dict[str, dict[str, float|None]]) -> pd.DataFrame :
 
-    return get_aggregated_period(period_start, period_end, periodics, ponctuals)
+    return get_aggregated_period(
+        period_start=period_start, 
+        period_end=period_end, 
+        periodics=periodics, 
+        ponctuals=ponctuals, 
+        modify_periodic_occurences=modify_periodic_occurences
+    )
 
 
 def get_budget_period(
@@ -112,7 +125,13 @@ def get_budget_period(
     corrected_budget_periodics = budget_periodics.copy()
     corrected_budget_periodics.loc[:, "amount"] *= -1
 
-    return get_aggregated_period(period_start, period_end, safe_concat(periodics, corrected_budget_periodics), budget_ponctuals)
+    return get_aggregated_period(
+        period_start=period_start, 
+        period_end=period_end, 
+        periodics=safe_concat(periodics, corrected_budget_periodics), 
+        ponctuals=budget_ponctuals,
+        modify_periodic_occurences={}
+    )
 
 # endregion
 
@@ -154,7 +173,7 @@ def get_offset(
         target_day: datetime,
         periodics: pd.DataFrame,
         ponctuals: pd.DataFrame,
-        ignore_periodics: dict[str, list[str]]) -> float :
+        modify_periodic_occurences: dict[str, dict[str, float|None]]) -> float :
     """
     Keep in mind that balance on day D is at the end of day D.
     Here we want the offset at the START of day target_day. 2 situations :
@@ -198,12 +217,8 @@ def get_offset(
         period_end=ref_period_end,
         periodics=periodics,
         ponctuals=ponctuals,
+        modify_periodic_occurences=modify_periodic_occurences,
     )
-
-    past_period_adjusted = apply_ignore_to_period(
-        period=past_period,
-        ignore_periodics=ignore_periodics
-        )
 
     past_balance = get_daily_balance(
         period_start=ref_period_start,

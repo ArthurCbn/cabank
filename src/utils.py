@@ -45,37 +45,59 @@ def combine_and_save_csv(
     reunited_df.to_csv(path, index=False)
 
 
+def get_periodic_occurence_modifications(
+        date: str,
+        amount: float,
+        periodic_id: str,
+        modify_periodic_occurences: dict[str, dict[str, float|None]]) -> tuple[float, bool] :
+    
+    if periodic_id not in modify_periodic_occurences :
+        return amount, False
+    
+    if date not in ( periodic_modifs := modify_periodic_occurences[periodic_id] ):
+        return amount, False
+        
+    if not ( adjusted_amount := periodic_modifs[date] ) is None :
+        return adjusted_amount, False
+    
+    return amount, True
+
+
 def is_periodic_occurence_ignored(
         date: str,
-        periodic_id: int,
-        ignore_periodics: dict[int, list[str]]) -> bool :
+        periodic_id: str,
+        modify_periodic_occurences: dict[str, dict[str, float|None]]) -> bool :
     
-    if periodic_id not in ignore_periodics :
-        return False
-    
-    if date in ignore_periodics[periodic_id] :
-        return True
-    
-    return False
+    _, is_ignored = get_periodic_occurence_modifications(
+        date=date, 
+        amount=0,
+        periodic_id=periodic_id,
+        modify_periodic_occurences=modify_periodic_occurences
+    )
+
+    return is_ignored
 
 
-def apply_ignore_to_period(
+def apply_modifs_to_period(
         period: pd.DataFrame,
-        ignore_periodics: dict[str, list[str]]) -> pd.DataFrame :
+        modify_periodic_occurences: dict[str, dict[str, float|None]]) -> pd.DataFrame :
     
-    def _is_row_ignored(
+    def _modify_row(
             row: pd.Series,
-            ignore_periodics: dict[int, list[str]]=ignore_periodics) -> bool :
+            modify_periodic_occurences: dict[str, dict[str, float|None]]=modify_periodic_occurences) -> tuple[float, bool] :
         
+        amount  = row["amount"]
         if ( periodic_id := row["periodic_id"] ) is None :
-            return False
+            return amount, False
         
         date = row["date"].strftime("%Y-%m-%d")
-        return is_periodic_occurence_ignored(date, periodic_id, ignore_periodics)
 
-    period.loc[:, "is_ignored"] = period.apply(_is_row_ignored, axis=1)
+        return get_periodic_occurence_modifications(date, amount, periodic_id, modify_periodic_occurences)
 
-    return period
+    modified_period = period.copy()
+    modified_period[["amount", "is_ignored"]] = modified_period.apply(_modify_row, axis=1, result_type="expand")
+
+    return modified_period
 
 
 def update_category_name(

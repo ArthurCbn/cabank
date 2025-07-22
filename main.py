@@ -17,7 +17,6 @@ from src.utils import (
     format_datetime,
     combine_and_save_csv,
     is_periodic_occurence_ignored,
-    apply_ignore_to_period,
     update_category_name,
     plot_custom_waterfall
 )
@@ -195,17 +194,17 @@ if "periodics" not in st.session_state :
 
 # region |---|---| Ignore periodic
 
-IGNORE_PERIODIC_OCCURENCES_PATH = USER_PATH / "ignore_periodic_occurences.json"
-if IGNORE_PERIODIC_OCCURENCES_PATH.exists() :
+PERIODIC_OCCURENCES_MODIFICATIONS_PATH = USER_PATH / "periodic_occurences_modifications.json"
+if PERIODIC_OCCURENCES_MODIFICATIONS_PATH.exists() :
 
-    with open(IGNORE_PERIODIC_OCCURENCES_PATH, "r") as f :
-        IGNORE_PERIODIC_OCCURENCES = json.load(f)
+    with open(PERIODIC_OCCURENCES_MODIFICATIONS_PATH, "r") as f :
+        PERIODIC_OCCURENCES_MODIFICATIONS = json.load(f)
     
 else :
-    IGNORE_PERIODIC_OCCURENCES = {}
+    PERIODIC_OCCURENCES_MODIFICATIONS = {}
 
-if "ignore_periodics" not in st.session_state :
-    st.session_state.ignore_periodics = IGNORE_PERIODIC_OCCURENCES
+if "modify_periodic_occurences" not in st.session_state :
+    st.session_state.modify_periodic_occurences = PERIODIC_OCCURENCES_MODIFICATIONS
 
 # endregion
 
@@ -548,10 +547,12 @@ def display_calendar(period: pd.DataFrame) :
         index: int,
         expense: pd.Series) :
 
-        st.subheader(f'{expense["category"]} : {expense["amount"]} {MONEY_SYMBOL}')
-        st.write(expense["description"])
+        amount = expense["amount"]
 
-        # Periodic => Possibility to ignore
+        st.subheader(f'{expense["category"]} : {amount} {MONEY_SYMBOL}')
+        st.write(f"{expense["date"].strftime("%d/%m/%Y")} - {expense["description"]}")
+
+        # Periodic => Possibility to ignore/modify
         if ( p_id := expense["periodic_id"] ) is not None :
             
             # Display periodic details
@@ -560,36 +561,51 @@ def display_calendar(period: pd.DataFrame) :
                 st.write("Could not find periodic info...")
             else :
                 periodic = periodic_search.iloc[0]
-                st.write(f"From **{periodic["first"].strftime("%d/%m/%Y")}** To **{periodic["last"].strftime("%d/%m/%Y")}**")
-                st.write(f"Periodicity : **{periodic["days"]} days**, **{periodic["months"]} months**")
+                st.write(f"Du **{periodic["first"].strftime("%d/%m/%Y")}** au **{periodic["last"].strftime("%d/%m/%Y")}**")
+                st.write(f"Tous les : **{periodic["days"]} jours**, **{periodic["months"]} mois**")
 
-            with st.form(key=f"ignore_form_{index}", border=False) :
+            # Modification form
+            with st.form(key=f"ignore_form_{index}", border=True, enter_to_submit=False) :
                 
-                form_cols = st.columns(2, vertical_alignment="center")
+                form_cols = st.columns(2, vertical_alignment="bottom")
                 
-                ignore = form_cols[0].toggle(
+                modified_amount = form_cols[0].number_input(
+                    "Montant de l'occurence",
+                    value=amount,
+                    format="%.2f",
+                )
+                ignore = form_cols[1].toggle(
                     "Ignorer occurence",
                     value=expense["is_ignored"],
                     key=f"ignore_{index}"
                 )
-                ignore_submit = form_cols[1].form_submit_button("Fermer", use_container_width=True)
+                ignore_submit = st.form_submit_button("Valider et Fermer", use_container_width=True)
                 
                 if ignore_submit :
+                    
                     date = expense["date"].strftime("%Y-%m-%d")
+
+                    # Modify amount
+                    if modified_amount != amount :
+                        amount = modified_amount
+
+                        if p_id not in st.session_state.modify_periodic_occurences :
+                            st.session_state.modify_periodic_occurences[p_id] = {}
+                        st.session_state.modify_periodic_occurences[p_id][date] = amount
 
                     # Ignore
                     if ignore is True:
-                        if p_id not in st.session_state.ignore_periodics :
-                            st.session_state.ignore_periodics[p_id] = []
-                        st.session_state.ignore_periodics[p_id].append(date)
+                        if p_id not in st.session_state.modify_periodic_occurences :
+                            st.session_state.modify_periodic_occurences[p_id] = {}
+                        st.session_state.modify_periodic_occurences[p_id][date] = None
                     
                     # Un-ignore
                     else :
-                        if is_periodic_occurence_ignored(date, p_id, st.session_state.ignore_periodics) :
-                            st.session_state.ignore_periodics[p_id].remove(date)
+                        if is_periodic_occurence_ignored(date, p_id, st.session_state.modify_periodic_occurences) :
+                            st.session_state.modify_periodic_occurences[p_id].pop(date)
                     
-                    with open(IGNORE_PERIODIC_OCCURENCES_PATH, "w") as f :
-                        json.dump(st.session_state.ignore_periodics, f, indent=4)
+                    with open(PERIODIC_OCCURENCES_MODIFICATIONS_PATH, "w") as f :
+                        json.dump(st.session_state.modify_periodic_occurences, f, indent=4)
 
                     st.session_state.calendar_state += 1
                     st.rerun()
@@ -1313,7 +1329,7 @@ if __name__ == '__main__' :
             target_day=st.session_state.period_start,
             periodics=FULL_PERIODICS,
             ponctuals=FULL_PONCTUALS,
-            ignore_periodics=st.session_state.ignore_periodics
+            modify_periodic_occurences=st.session_state.modify_periodic_occurences
         )
 
 # endregion
@@ -1324,12 +1340,8 @@ if __name__ == '__main__' :
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
         periodics=st.session_state.periodics,
-        ponctuals=st.session_state.ponctuals
-    )
-
-    period = apply_ignore_to_period(
-        period, 
-        st.session_state.ignore_periodics
+        ponctuals=st.session_state.ponctuals,
+        modify_periodic_occurences=st.session_state.modify_periodic_occurences,
     )
 
     daily_balance = get_daily_balance(
@@ -1349,7 +1361,7 @@ if __name__ == '__main__' :
             period_end=st.session_state.period_end,
             periodics=st.session_state.periodics,
             budget_periodics=st.session_state.budget_periodics,
-            budget_ponctuals=st.session_state.budget_ponctuals
+            budget_ponctuals=st.session_state.budget_ponctuals,
         )
         budget_balance = get_daily_balance(
             period_start=st.session_state.period_start,
