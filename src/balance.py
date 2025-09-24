@@ -86,11 +86,12 @@ def get_aggregated_period(
 
     period = safe_concat(period_items, period_periodics).reset_index(drop=True)
     
-    if not period.empty :
-        period.loc[:, "is_ignored"] = False
-    else :
+    if period.empty :
         period["is_ignored"] = pd.Series(dtype="bool")
-
+        return period
+    
+    period.loc[:, "is_ignored"] = False
+    
     adjusted_period = apply_modifs_to_period(
         period=period,
         modify_periodic_occurences=modify_periodic_occurences,
