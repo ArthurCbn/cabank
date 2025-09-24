@@ -93,7 +93,7 @@ def apply_modifs_to_period(
         date = row["date"].strftime("%Y-%m-%d")
 
         return get_periodic_occurence_modifications(date, amount, periodic_id, modify_periodic_occurences)
-
+    
     modified_period = period.copy()
     modified_period[["amount", "is_ignored"]] = modified_period.apply(_modify_row, axis=1, result_type="expand")
 
