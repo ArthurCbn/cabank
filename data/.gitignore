@@ -1,0 +1,4 @@
+*.csv
+*.json
+
+!default_config.json

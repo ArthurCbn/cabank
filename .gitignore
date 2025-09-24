@@ -1,6 +1,8 @@
-*.csv
-*.json
-!default_config.json
-__pycache__
-test.py
-venv/
+__pycache__/
+*.py[cod]
+.env
+
+.DS_Store
+Thumbs.db
+
+build

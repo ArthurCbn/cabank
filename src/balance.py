@@ -1,7 +1,7 @@
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import pandas as pd
-from .utils import (
+from utils import (
     safe_get,
     safe_concat,
     apply_modifs_to_period,
@@ -49,13 +49,14 @@ def get_all_periodics_in_period(
         period_end: datetime,
         data: pd.DataFrame) -> pd.DataFrame :
     
-    all_periodics = pd.DataFrame(columns=["category", "description", "amount", "date", "periodic_id"])
+    all_periodics = pd.DataFrame(columns=["category", "tags", "description", "amount", "date", "periodic_id"])
     for i, periodic in data.iterrows() :
         
         occurences = get_all_occurences_in_period(periodic, period_start, period_end)
         for occurence in occurences :
             all_periodics.loc[len(all_periodics)] = [
                 safe_get(periodic, "category", "NO CATEGORY"),
+                safe_get(periodic, "tags", []),
                 safe_get(periodic, "description", "NO DESCRIPTION"),
                 safe_get(periodic, "amount", 0),
                 occurence,
