@@ -3,6 +3,13 @@ from typing import Any
 from datetime import datetime
 from pathlib import Path
 import plotly.graph_objects as go
+import json
+
+
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    hex_color = hex_color.lstrip('#')
+    r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"
 
 
 def safe_get(
@@ -11,7 +18,11 @@ def safe_get(
         default: Any=None) -> Any :
     
     val = row.get(key, default)
-    return default if pd.isna(val) else val
+
+    if not isinstance(val, list) :
+        return default if pd.isna(val) else val
+
+    return val
 
 
 def format_datetime(serie: pd.Series) -> pd.Series :
@@ -31,15 +42,30 @@ def safe_concat(
     return pd.concat([df1, df2])
 
 
+def serialize_list_columns(
+        df: pd.DataFrame
+) -> pd.DataFrame :
+    
+    df = df.copy()
+    for col in df.columns:
+        if df[col].apply(lambda x: isinstance(x, list)).any():
+            df[col] = df[col].apply(json.dumps)
+    return df
+
+
 def combine_and_save_csv(
         modified_df: pd.DataFrame,
         path: Path,
         isolated_df: pd.DataFrame|None=None) :
     
+    modified_df = serialize_list_columns(modified_df)
+
     # Avoid useless warning
     if ( isolated_df is None ) or ( len(isolated_df) == 0 ) :
         modified_df.to_csv(path, index=False)
         return
+
+    isolated_df = serialize_list_columns(isolated_df)
 
     reunited_df = safe_concat(modified_df, isolated_df)
     reunited_df.to_csv(path, index=False)

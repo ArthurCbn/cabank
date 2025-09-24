@@ -13,14 +13,15 @@ import os
 import shutil
 import json
 from pathlib import Path
-from src.utils import (
+from utils import (
     format_datetime,
     combine_and_save_csv,
     is_periodic_occurence_ignored,
     update_category_name,
-    plot_custom_waterfall
+    plot_custom_waterfall,
+    hex_to_rgba
 )
-from src.balance import (
+from balance import (
     get_real_period,
     get_budget_period,
     get_daily_balance,
@@ -32,7 +33,8 @@ from streamlit_calendar import calendar
 
 # region |---| Root
 
-ROOT_PATH = Path(__file__).absolute().parent
+SRC_PATH = Path(__file__).absolute().parent
+ROOT_PATH = SRC_PATH.parent
 
 DATA_PATH = ROOT_PATH / "data"
 if not DATA_PATH.exists() :
@@ -46,7 +48,7 @@ DEFAULT_CONFIG_PATH = DATA_PATH / "default_config.json"
 
 ALL_USERS = [
     user_folder.stem 
-    for user_folder in DATA_PATH.iterdir() 
+    for user_folder in sorted(DATA_PATH.iterdir()) 
     if ( user_folder.is_dir() and user_folder.stem != "default" ) 
 ]
 
@@ -156,6 +158,7 @@ if PERIODICS_PATH.exists() :
 
     # Typing
     FULL_PERIODICS["category"] = FULL_PERIODICS["category"].astype(str)
+    FULL_PERIODICS["tags"] = FULL_PERIODICS["tags"].astype(str).apply(json.loads)
     FULL_PERIODICS["description"] = FULL_PERIODICS["description"].fillna("").astype(str)
     FULL_PERIODICS["amount"] = FULL_PERIODICS["amount"].astype(float)
     FULL_PERIODICS["first"] = format_datetime(FULL_PERIODICS["first"])
@@ -175,6 +178,7 @@ if PERIODICS_PATH.exists() :
 else :
     columns = {
         "category": "str",
+        "tags": "list",
         "description": "str", 
         "amount": "float64", 
         "first": "datetime64[ns]", 
@@ -216,6 +220,7 @@ if PONCTUALS_PATH.exists() :
 
     # Typing
     FULL_PONCTUALS["category"] = FULL_PONCTUALS["category"].astype(str)
+    FULL_PONCTUALS["tags"] = FULL_PONCTUALS["tags"].astype(str).apply(json.loads)
     FULL_PONCTUALS["description"] = FULL_PONCTUALS["description"].fillna("").astype(str)
     FULL_PONCTUALS["amount"] = FULL_PONCTUALS["amount"].astype(float)
     FULL_PONCTUALS["date"] = format_datetime(FULL_PONCTUALS["date"])
@@ -233,6 +238,7 @@ else :
     columns = {
         "date": "datetime64[ns]", 
         "category": "str",
+        "tags": "list",
         "description": "str", 
         "amount": "float64", 
         "id": "str"
@@ -250,7 +256,7 @@ if "ponctuals" not in st.session_state :
 
 # region |---|---|---| Periodics
 
-BUDGET_PERIODICS = pd.DataFrame(columns=["category", "description", "amount", "first", "last", "days", "months", "id"])
+BUDGET_PERIODICS = pd.DataFrame(columns=["category", "tags", "description", "amount", "first", "last", "days", "months", "id"])
 
 if not CURRENT_BUDGET_PATH is None :
     BUDGET_PERIODICS_PATH = CURRENT_BUDGET_PATH / "periodics.csv"
@@ -259,6 +265,7 @@ if not CURRENT_BUDGET_PATH is None :
 
 # Typing
 BUDGET_PERIODICS["category"] = BUDGET_PERIODICS["category"].astype(str)
+BUDGET_PERIODICS["tags"] = BUDGET_PERIODICS["tags"].astype(str).apply(json.loads)
 BUDGET_PERIODICS["description"] = BUDGET_PERIODICS["description"].fillna("").astype(str)
 BUDGET_PERIODICS["amount"] = BUDGET_PERIODICS["amount"].astype(float)
 BUDGET_PERIODICS["first"] = format_datetime(BUDGET_PERIODICS["first"])
@@ -274,7 +281,7 @@ if "budget_periodics" not in st.session_state :
 
 # region |---|---|---| Ponctuals
 
-BUDGET_PONCTUALS = pd.DataFrame(columns=["date", "category", "description", "amount", "id"])
+BUDGET_PONCTUALS = pd.DataFrame(columns=["date", "category", "tags", "description", "amount", "id"])
 if not CURRENT_BUDGET_PATH is None :
     BUDGET_PONCTUALS_PATH = CURRENT_BUDGET_PATH / "ponctuals.csv"
     if BUDGET_PONCTUALS_PATH.exists() :
@@ -282,6 +289,7 @@ if not CURRENT_BUDGET_PATH is None :
 
 # Typing
 BUDGET_PONCTUALS["category"] = BUDGET_PONCTUALS["category"].astype(str)
+BUDGET_PONCTUALS["tags"] = BUDGET_PONCTUALS["tags"].astype(str).apply(json.loads)
 BUDGET_PONCTUALS["description"] = BUDGET_PONCTUALS["description"].fillna("").astype(str)
 BUDGET_PONCTUALS["amount"] = BUDGET_PONCTUALS["amount"].astype(float)
 BUDGET_PONCTUALS["date"] = format_datetime(BUDGET_PONCTUALS["date"])
@@ -291,6 +299,26 @@ if "budget_ponctuals" not in st.session_state :
     st.session_state.budget_ponctuals = BUDGET_PONCTUALS
 
 # endregion
+
+# endregion
+
+# region |---|---| Tags
+
+# TODO -> BUG
+# TODO MultiselectColumn when > 1.51 released ?
+
+# BUG
+# Quand on ajoute un nouvel élément avec un tag ça bug
+# Si on ajoute l'élément puis qu'on enregistre, le champs "None" disparait et là on peut modifier le tag
+# default=[] empire la situation parce que même si on rempli pas le champs, ça raise l'erreur
+
+# periodic_tags = st.session_state.periodics["tags"].explode().dropna().unique().tolist()
+# ponctual_tags = st.session_state.ponctuals["tags"].explode().dropna().unique().tolist()
+# budget_periodic_tags = st.session_state.budget_periodics["tags"].explode().dropna().unique().tolist()
+# budget_ponctual_tags = st.session_state.budget_ponctuals["tags"].explode().dropna().unique().tolist()
+
+# st.session_state.all_tags = list(set(periodic_tags + ponctual_tags + budget_periodic_tags + budget_ponctual_tags))
+st.session_state.all_tags = []
 
 # endregion
 
@@ -390,7 +418,7 @@ def display_offset() :
 
         ref_submit_button  = col_ref_form[2].form_submit_button(
             "Valider", 
-            use_container_width=True
+            width="stretch"
         )
 
         if ref_submit_button :
@@ -483,10 +511,10 @@ def display_config() :
             st.rerun(scope="fragment")
 
         col_buttons = st.columns(2)
-        if col_buttons[0].button("Annuler", use_container_width=True) :
+        if col_buttons[0].button("Annuler", width="stretch") :
             st.rerun()
         
-        if col_buttons[1].button("Confirmer", use_container_width=True) :
+        if col_buttons[1].button("Confirmer", width="stretch") :
             
             # Check that there is no duplicates
             all_names = [cat for cat, _ in tmp_all_categories.values()]
@@ -500,7 +528,7 @@ def display_config() :
 
 # endregion
 
-    if col_config[2].button("Modifier les catégories", use_container_width=True) :
+    if col_config[2].button("Modifier les catégories", width="stretch") :
         tmp_all_categories = {
             c_id: (cat, st.session_state.all_categories[cat])
             for c_id, cat in st.session_state.categories_id.items()
@@ -519,7 +547,7 @@ def display_config() :
         format="%.0d",
         value=st.session_state.first_day
     )
-    if col_config[1].button("Confirmer", use_container_width=True, key="first_day_input_button") :
+    if col_config[1].button("Confirmer", width="stretch", key="first_day_input_button") :
         
         st.session_state.first_day = input_first_day
 
@@ -548,9 +576,11 @@ def display_calendar(period: pd.DataFrame) :
         expense: pd.Series) :
 
         amount = expense["amount"]
+        tags = expense["tags"]
 
         st.subheader(f'{expense["category"]} : {amount} {MONEY_SYMBOL}')
         st.write(f"{expense["date"].strftime("%d/%m/%Y")} - {expense["description"]}")
+        st.write(" ".join(f"#{t}" for t in tags))
 
         # Periodic => Possibility to ignore/modify
         if ( p_id := expense["periodic_id"] ) is not None :
@@ -579,7 +609,7 @@ def display_calendar(period: pd.DataFrame) :
                     value=expense["is_ignored"],
                     key=f"ignore_{index}"
                 )
-                ignore_submit = st.form_submit_button("Valider et Fermer", use_container_width=True)
+                ignore_submit = st.form_submit_button("Valider et Fermer", width="stretch")
                 
                 if ignore_submit :
                     
@@ -611,7 +641,7 @@ def display_calendar(period: pd.DataFrame) :
                     st.rerun()
 
         else :
-            if st.button("Fermer", use_container_width=True) :
+            if st.button("Fermer", width="stretch") :
                 st.session_state.calendar_state += 1
                 st.rerun()
     
@@ -702,12 +732,12 @@ def display_real_ponctuals_editor() :
     st.subheader("Dépenses ponctuelles")
 
     ponctuals_ids = PONCTUALS["id"]
-    ponctuals_to_edit = PONCTUALS[["date", "category", "description", "amount"]]
+    ponctuals_to_edit = PONCTUALS[["date", "category", "tags", "description", "amount"]]
 
     edited = st.data_editor(
         ponctuals_to_edit,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         key="edited_ponctuals",
         column_config={
             "date": st.column_config.DateColumn(
@@ -723,6 +753,12 @@ def display_real_ponctuals_editor() :
                 width="small",
                 required=True
             ),
+            "tags": st.column_config.ListColumn( # TODO MultiselectColumn when > 1.51 released ?
+                "Tags", 
+                width="medium",
+                #options=st.session_state.all_tags,
+                #accept_new_options=True
+            ),
             "description": st.column_config.TextColumn(
                 "Description", 
                 width="large",
@@ -736,8 +772,10 @@ def display_real_ponctuals_editor() :
         },
         hide_index=True,
     )
-    edited_with_id = edited.join(ponctuals_ids, how="left")
 
+    edited["tags"] = edited["tags"].apply(lambda x : x if isinstance(x, list) else [])
+
+    edited_with_id = edited.join(ponctuals_ids, how="left")
     for i, row in edited_with_id.iterrows() :
         if pd.isna(row["id"]) :
             edited_with_id.loc[i, "id"] = str(uuid.uuid4())
@@ -751,6 +789,7 @@ def display_real_ponctuals_editor() :
             isolated_df=ISOLATED_PONCTUALS, 
             path=PONCTUALS_PATH
         )
+        st.rerun()
 
 # endregion
 
@@ -761,12 +800,12 @@ def display_real_periodics_editor() :
     st.subheader("Virements/Prélèvements périodiques")
 
     periodics_ids = PERIODICS["id"]
-    periodics_to_edit = PERIODICS[["category", "description", "amount", "first", "last", "days", "months"]]
+    periodics_to_edit = PERIODICS[["category", "tags", "description", "amount", "first", "last", "days", "months"]]
 
     edited = st.data_editor(
         periodics_to_edit,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         key="edited_periodics",
         column_config={
             "category": st.column_config.SelectboxColumn(
@@ -774,6 +813,12 @@ def display_real_periodics_editor() :
                 options=st.session_state.all_categories.keys(), 
                 width="small",
                 required=True
+            ),
+            "tags": st.column_config.ListColumn( # TODO MultiselectColumn when > 1.51 released ?
+                "Tags", 
+                width="medium",
+                #options=st.session_state.all_tags,
+                #accept_new_options=True
             ),
             "description": st.column_config.TextColumn(
                 "Description", 
@@ -818,8 +863,10 @@ def display_real_periodics_editor() :
         },
         hide_index=True,
     )
-    edited_with_id = edited.join(periodics_ids, how="left")
 
+    edited["tags"] = edited["tags"].apply(lambda x : x if isinstance(x, list) else [])
+
+    edited_with_id = edited.join(periodics_ids, how="left")
     for i, row in edited_with_id.iterrows() :
         if pd.isna(row["id"]) :
             edited_with_id.loc[i, "id"] = str(uuid.uuid4())
@@ -833,6 +880,7 @@ def display_real_periodics_editor() :
             isolated_df=ISOLATED_PERIODICS, 
             path=PERIODICS_PATH
         )
+        st.rerun()
 
 
 # endregion    
@@ -868,12 +916,12 @@ def display_budget_ponctuals_editor() :
     st.subheader("Dépenses ponctuelles budgettisées")
 
     budget_ponctuals_ids = BUDGET_PONCTUALS["id"]
-    budget_ponctuals_to_edit = BUDGET_PONCTUALS[["date", "category", "description", "amount"]]
+    budget_ponctuals_to_edit = BUDGET_PONCTUALS[["date", "category", "tags", "description", "amount"]]
 
     edited = st.data_editor(
         budget_ponctuals_to_edit,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         key="edited_budget_ponctuals",
         column_config={
             "date": st.column_config.DateColumn(
@@ -889,6 +937,12 @@ def display_budget_ponctuals_editor() :
                 width="small",
                 required=True
             ),
+            "tags": st.column_config.ListColumn( # TODO MultiselectColumn when > 1.51 released ?
+                "Tags", 
+                width="medium",
+                #options=st.session_state.all_tags,
+                #accept_new_options=True
+            ),
             "description": st.column_config.TextColumn(
                 "Description", 
                 width="large",
@@ -902,8 +956,10 @@ def display_budget_ponctuals_editor() :
         },
         hide_index=True,
     )
-    edited_with_id = edited.join(budget_ponctuals_ids, how="left")
 
+    edited["tags"] = edited["tags"].apply(lambda x : x if isinstance(x, list) else [])
+
+    edited_with_id = edited.join(budget_ponctuals_ids, how="left")
     for i, row in edited_with_id.iterrows() :
         if pd.isna(row["id"]) :
             edited_with_id.loc[i, "id"] = str(uuid.uuid4())
@@ -916,6 +972,7 @@ def display_budget_ponctuals_editor() :
             modified_df=edited_with_id, 
             path=BUDGET_PONCTUALS_PATH,
         )
+        st.rerun()
 
 # endregion
 
@@ -926,12 +983,12 @@ def display_budget_periodics_editor() :
     st.subheader("Budget")
 
     budget_periodics_ids = BUDGET_PERIODICS["id"]
-    budget_periodics_to_edit = BUDGET_PERIODICS[["category", "description", "amount", "first", "last", "days", "months"]]
+    budget_periodics_to_edit = BUDGET_PERIODICS[["category", "tags", "description", "amount", "first", "last", "days", "months"]]
 
     edited = st.data_editor(
         budget_periodics_to_edit,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         key="edited_budget_periodics",
         column_config={
             "category": st.column_config.SelectboxColumn(
@@ -939,6 +996,12 @@ def display_budget_periodics_editor() :
                 options=st.session_state.all_categories.keys(), 
                 width="small",
                 required=True
+            ),
+            "tags": st.column_config.ListColumn( # TODO MultiselectColumn when > 1.51 released ?
+                "Tags", 
+                width="medium",
+                #options=st.session_state.all_tags,
+                #accept_new_options=True
             ),
             "description": st.column_config.TextColumn(
                 "Description", 
@@ -983,8 +1046,10 @@ def display_budget_periodics_editor() :
         },
         hide_index=True,
     )
-    edited_with_id = edited.join(budget_periodics_ids, how="left")
 
+    edited["tags"] = edited["tags"].apply(lambda x : x if isinstance(x, list) else [])
+
+    edited_with_id = edited.join(budget_periodics_ids, how="left")
     for i, row in edited_with_id.iterrows() :
         if pd.isna(row["id"]) :
             edited_with_id.loc[i, "id"] = str(uuid.uuid4())
@@ -998,6 +1063,7 @@ def display_budget_periodics_editor() :
             isolated_df=None, 
             path=BUDGET_PERIODICS_PATH
         )
+        st.rerun()
 
 # endregion
 
@@ -1131,8 +1197,165 @@ def display_waterfall(
         ),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
+# endregion
+
+# region |---|---| Sankey
+
+def display_sankey(
+        period: pd.DataFrame,
+        budget_period: pd.DataFrame|None=None) :
+
+    node_opacity = 0.6
+    link_opacity = 0.3
+    tag_color = "gray"
+    total_node = ""
+    total_node_color = "white"
+
+# region |---|---|---| Build Sankey
+    def _build_sankey_diagram(
+            period: pd.DataFrame
+    ) -> tuple[list[str], list[int], list[int], list[int], list[str], list[str]] :
+        
+        # Init nodes
+        nodes_idx = {total_node: 0}
+        node_colors = [total_node_color]
+        labels = [total_node]
+
+        for _, row in period.iterrows() :
+            cat = row["category"]
+            tags = row["tags"]
+
+            amount = row["amount"]
+            suffix = "in" if amount > 0 else "out"
+
+            if not f"{cat}_{suffix}" in nodes_idx :
+                nodes_idx[f"{cat}_{suffix}"] = len(nodes_idx)
+                labels.append(cat)
+                node_colors.append(hex_to_rgba(st.session_state.all_categories[cat], alpha=node_opacity))
+
+            for tag in tags :
+                if not f"{tag}_{suffix}" in nodes_idx :
+                    nodes_idx[f"{tag}_{suffix}"] = len(nodes_idx)
+                    labels.append(tag)
+                    node_colors.append(tag_color)
+
+        # Build links
+        sources = []
+        targets = []
+        values = []
+        link_colors = []
+        links_idx = {}
+        
+        def __add_link(
+                node1: int,
+                node2: int,
+                amount: float,
+                cat: str|None=None,
+                color: str|None=None) -> None :
+
+            link = (node1, node2, cat)
+
+            if not link in links_idx :
+                links_idx[link] = len(links_idx)
+                sources.append(node1)
+                targets.append(node2)
+                values.append(0)
+
+                if color is None :
+                    assert not cat is None
+                    link_colors.append(hex_to_rgba(st.session_state.all_categories[cat], alpha=link_opacity))
+                else :
+                    link_colors.append(color)
+
+            link_idx = links_idx[link]
+            values[link_idx] += abs(amount)
+
+            return
+    
+
+        for _, row in period.iterrows() :
+            
+            cat = row["category"]
+            tags = row["tags"]
+            amount = row["amount"]
+
+            if amount >= 0 :
+
+                current_node = nodes_idx[f"{cat}_in"]
+                for t in tags :
+                    next_node = nodes_idx[f"{t}_in"]
+                    __add_link(current_node, next_node, amount, cat=cat)
+                    current_node = next_node
+                __add_link(current_node, nodes_idx[total_node], amount, cat=cat)
+            
+            else :
+                current_node = nodes_idx[total_node]
+                for t in tags :
+                    next_node = nodes_idx[f"{t}_out"]
+                    __add_link(current_node, next_node, amount, cat=cat)
+                    current_node = next_node
+                __add_link(current_node, nodes_idx[f"{cat}_out"], amount, cat=cat)
+
+        # Excedent/Deficit
+        balance = period["amount"].sum()
+        
+        if balance < 0 :
+            nodes_idx["Déficit"] = len(nodes_idx)
+            node_colors.append(f"rgba(200,0,0,{node_opacity})")
+            labels.append("Déficit")
+            __add_link(nodes_idx["Déficit"], nodes_idx[total_node], abs(balance), color=f"rgba(200,0,0,{link_opacity})")
+
+        elif balance > 0 :
+            nodes_idx["Excédent"] = len(nodes_idx)
+            node_colors.append(f"rgba(0,160,0,{node_opacity})")
+            labels.append("Excédent")
+            __add_link(nodes_idx[total_node], nodes_idx["Excédent"], abs(balance), color=f"rgba(0,160,0,{link_opacity})")
+
+        return labels, sources, targets, values, node_colors, link_colors
+# endregion
+
+    # Mise en forme
+    period_real = period[( period["is_ignored"] == False ) & ( period["category"].isin(st.session_state.all_categories) )]
+    period_real = period_real[["category", "tags", "amount"]]
+
+    (labels, 
+     sources, 
+     targets,
+     values,
+     node_colors,
+     link_colors) = _build_sankey_diagram(period_real)             
+
+    fig = go.Figure(data=[go.Sankey(
+        valueformat = ".0f",
+        valuesuffix = MONEY_SYMBOL,
+        arrangement="snap",
+        node=dict(
+            pad=40,
+            thickness=10,
+            line=dict(color="black", width=0.5),
+            label=labels,
+            color=node_colors
+        ),
+        link=dict(
+            source=sources,
+            target=targets,
+            value=values,
+            color=link_colors,
+            hovertemplate='%{source.label} → %{target.label}<br>%{value}<extra></extra>'
+        )
+    )])
+
+    fig.update_layout(
+        title_text="Cash flow",
+        font_family="Courier New",
+        font_size=12,
+        font_shadow="",
+        paper_bgcolor ="white"
+    )
+
+    st.plotly_chart(fig, width="stretch")
 # endregion
 
 # region |---|---| Stats
@@ -1271,7 +1494,7 @@ def run_output_ui(
         #     period=period,
         #     budget_period=budget_period,
         # )
-        display_waterfall(
+        display_sankey(
             period=period,
             budget_period=budget_period
         )
@@ -1312,6 +1535,14 @@ if __name__ == '__main__' :
             [data-testid="stMainBlockContainer"] {
                 padding-top: 0rem;
             }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {
+                background-color: white;
+            }   
         </style>
     """, unsafe_allow_html=True)
 

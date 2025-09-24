@@ -1,4 +1,0 @@
-streamlit>=1.46.0
-pandas
-plotly
-streamlit-calendar
