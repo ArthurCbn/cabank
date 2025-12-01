@@ -1096,7 +1096,11 @@ def display_daily_balance(
         y=past_balance["balance"], 
         mode='lines', 
         name='Réel', 
-        line=dict(color='black')
+        line=dict(color='black'),
+        hovertemplate=(
+            "Date : %{x}<br>"
+            "Balance : %{y} " + MONEY_SYMBOL + "<extra></extra>"
+        )
     ))
 
     fig.add_trace(go.Scatter(
@@ -1104,7 +1108,11 @@ def display_daily_balance(
         y=future_balance["balance"], 
         mode='lines', 
         name='Prévisionnel', 
-        line=dict(color='black', dash='dot')
+        line=dict(color='black', dash='dot'),
+        hovertemplate=(
+            "Date : %{x}<br>"
+            "Prévision : %{y} " + MONEY_SYMBOL + "<extra></extra>"
+        )
     ))
 
     if not budget_balance is None :
@@ -1113,7 +1121,11 @@ def display_daily_balance(
             y=budget_balance["balance"], 
             mode='lines', 
             name=f'Budget {st.session_state.budget}', 
-            line=dict(color='gray', dash='dash')
+            line=dict(color='gray', dash='dash'),
+            hovertemplate=(
+                "Date : %{x}<br>"
+                "Budget : %{y} " + MONEY_SYMBOL + "<extra></extra>"
+            )
         ))
 
         fig.add_trace(go.Bar(
@@ -1151,8 +1163,8 @@ def display_daily_balance(
     fig.update_xaxes(showgrid=True)
     fig.update_layout(
         xaxis=dict(title="Date"), 
-        yaxis=dict(title="Balance", showgrid=True), # Axe principal
-        yaxis2=dict(title="Dépenses", overlaying='y', side='right', showgrid=False), # Axe secondaire
+        yaxis=dict(title="Balance", showgrid=True, side='right'), # Axe principal
+        yaxis2=dict(title="Dépenses", overlaying='y', side='left', showgrid=False), # Axe secondaire
         title=f"Balance de la période : {daily_balance.iloc[-1]['balance'] - st.session_state.offset:+.2f} {MONEY_SYMBOL}",
         legend=dict(
             orientation="h",
@@ -1417,7 +1429,10 @@ def display_amount_by_cat(
 
         spent_budget = budget_period[( budget_period["amount"] < 0 ) & ( budget_period["category"].isin(st.session_state.all_categories) )]
         spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().abs().sort_index()
-        spent_budget_stats = spent_budget_stats.reindex(spent_real_stats.index)
+
+        ordered_cat = list(spent_real_stats.index) 
+        ordered_cat.extend([c for c in spent_budget_stats.index if c not in ordered_cat])
+        spent_budget_stats = spent_budget_stats.reindex(ordered_cat)
 
         fig.add_trace(go.Bar(
             x=spent_budget_stats.index,
@@ -1426,7 +1441,7 @@ def display_amount_by_cat(
             orientation='v',
             marker=dict(color='lightgray'),
             width=0.6,
-            hovertemplate=f'Budget {st.session_state.budget}'+': %{x}<extra></extra>',
+            hovertemplate=f'Budget {st.session_state.budget}'+': %{y}' + MONEY_SYMBOL +'<extra></extra>',
         ))
 
     fig.add_trace(go.Bar(
@@ -1436,7 +1451,7 @@ def display_amount_by_cat(
         orientation='v',
         marker=dict(color=colors),
         width=0.3,
-        hovertemplate='Réel: %{x}<extra></extra>',
+        hovertemplate='Réel: %{y}' + MONEY_SYMBOL +'<extra></extra>',
     ))
 
     fig.update_layout(
