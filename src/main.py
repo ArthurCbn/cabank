@@ -1348,7 +1348,6 @@ def display_sankey(
     )])
 
     fig.update_layout(
-        title_text="Cash flow",
         font_family="Courier New",
         font_size=12,
         font_shadow="",
@@ -1365,32 +1364,40 @@ def display_amount_by_cat(
         budget_period: pd.DataFrame|None=None) :
 
 
+    title = "Dépenses par catégories"
+
     spent_real = period[( period["is_ignored"] == False ) & ( period["category"].isin(st.session_state.all_categories) )]
-    spent_real_stats = spent_real[["category", "amount"]].groupby(["category"]).sum().sort_index()
+    spent_real_output = spent_real[spent_real["amount"] < 0]
+
+    spent_real_stats = spent_real_output[["category", "amount"]].groupby(["category"]).sum().abs().sort_values("amount", ascending=False)
 
     colors = [st.session_state.all_categories[cat] for cat in spent_real_stats.index]
 
     fig = go.Figure()
 
     if not budget_period is None :
-        spent_budget = budget_period[budget_period["category"].isin(st.session_state.all_categories)]
-        spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().sort_index()
+
+        title += f" vs budget {st.session_state.budget}"
+
+        spent_budget = budget_period[( budget_period["amount"] < 0 ) & ( budget_period["category"].isin(st.session_state.all_categories) )]
+        spent_budget_stats = spent_budget[["category", "amount"]].groupby(["category"]).sum().abs().sort_index()
+        spent_budget_stats = spent_budget_stats.reindex(spent_real_stats.index)
 
         fig.add_trace(go.Bar(
-            y=spent_budget_stats.index,
-            x=spent_budget_stats["amount"],
+            x=spent_budget_stats.index,
+            y=spent_budget_stats["amount"],
             name=f"Budget {st.session_state.budget}",
-            orientation='h',
+            orientation='v',
             marker=dict(color='lightgray'),
             width=0.6,
             hovertemplate=f'Budget {st.session_state.budget}'+': %{x}<extra></extra>',
         ))
 
     fig.add_trace(go.Bar(
-        y=spent_real_stats.index,
-        x=spent_real_stats["amount"],
+        x=spent_real_stats.index,
+        y=spent_real_stats["amount"],
         name='Dépenses réelles',
-        orientation='h',
+        orientation='v',
         marker=dict(color=colors),
         width=0.3,
         hovertemplate='Réel: %{x}<extra></extra>',
@@ -1398,7 +1405,7 @@ def display_amount_by_cat(
 
     fig.update_layout(
         barmode='overlay',
-        title=f'Dépenses réelles vs Budget {st.session_state.budget}',
+        title=title,
         xaxis_title='Montant',
         yaxis_title='Catégorie',
         height=400,
@@ -1406,8 +1413,6 @@ def display_amount_by_cat(
     )
 
     st.plotly_chart(fig)
-    
-    # TODO Donut plot
 
 # endregion
 
@@ -1441,7 +1446,7 @@ def run_input_ui_and_get_mixed_placeholder() :
 
     with st.container() :
 
-        tab_cal, tab_real, tab_budget, tab_stats = st.tabs(["Calendrier des dépenses", "Réel", "Budget", "Statistiques mensuelles"])
+        tab_cash_flow, tab_cal, tab_real, tab_budget, tab_stats = st.tabs(["Cash flow", "Calendrier des dépenses", "Réel", "Budget", "Statistiques mensuelles"])
 
         with tab_real :
             with st.expander("Virements/Prélèvements périodiques") :
@@ -1460,13 +1465,14 @@ def run_input_ui_and_get_mixed_placeholder() :
 
                 display_budget_periodics_editor()
     
-    return tab_cal, tab_stats
+    return tab_cash_flow, tab_cal, tab_stats
 
 # endregion
 
 # region |---|---| Output UI
 
 def run_output_ui(
+        tab_cash_flow,
         tab_cal,
         tab_stats,
         period: pd.DataFrame,
@@ -1477,6 +1483,12 @@ def run_output_ui(
     This part of the UI is exclusively for outputs, so it must be ran AFTER the logic kernel.
     Since some mixed widget are displayed alongside input widgets (calendar for instance), we take their placeholders in args.
     """
+
+    with tab_cash_flow :
+        display_sankey(
+            period=period,
+            budget_period=budget_period
+        )
 
     with tab_cal :
         display_calendar(period)
@@ -1490,14 +1502,15 @@ def run_output_ui(
             daily_balance=daily_balance,
             budget_balance=budget_balance,    
         )
-        # display_amount_by_cat(
+        # display_waterfall(
         #     period=period,
         #     budget_period=budget_period,
         # )
-        display_sankey(
+        display_amount_by_cat(
             period=period,
-            budget_period=budget_period
+            budget_period=budget_period,
         )
+        
 
 # endregion
 
@@ -1548,7 +1561,7 @@ if __name__ == '__main__' :
 
 # endregion
 
-    tab_cal, tab_stats = run_input_ui_and_get_mixed_placeholder()
+    tab_cash_flow, tab_cal, tab_stats = run_input_ui_and_get_mixed_placeholder()
 
 # region |---| Offset
 
@@ -1607,6 +1620,7 @@ if __name__ == '__main__' :
 # endregion
     
     run_output_ui(
+        tab_cash_flow=tab_cash_flow,
         tab_cal=tab_cal,
         tab_stats=tab_stats,
         period=period,
