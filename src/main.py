@@ -1482,7 +1482,7 @@ def run_input_ui_and_get_mixed_placeholder() :
 
     with st.container() :
 
-        tab_cash_flow, tab_cal, tab_real, tab_budget, tab_stats = st.tabs(["Cash flow", "Calendrier des dépenses", "Réel", "Budget", "Statistiques mensuelles"])
+        tab_cash_flow, tab_real, tab_budget, tab_cal, tab_stats = st.tabs(["Cash flow", "Réel", "Budget", "Calendrier", "Statistiques"])
 
         with tab_real :
             with st.expander("Virements/Prélèvements périodiques") :
