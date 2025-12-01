@@ -1082,7 +1082,9 @@ def display_monthly_stats() :
 
 def display_daily_balance(
         daily_balance: pd.DataFrame,
-        budget_balance: pd.DataFrame|None=None) :
+        period: pd.DataFrame,
+        budget_balance: pd.DataFrame|None=None,
+        budget_period: pd.DataFrame|None=None) :
     
     past_balance = daily_balance[daily_balance["date"] <= TODAY]
     future_balance = daily_balance[daily_balance["date"] >= (TODAY - relativedelta(days=1))]
@@ -1114,11 +1116,44 @@ def display_daily_balance(
             line=dict(color='gray', dash='dash')
         ))
 
+        fig.add_trace(go.Bar(
+            x=budget_period["date"],
+            y=budget_period["amount"],
+            name=f'Budget {st.session_state.budget}',
+            marker=dict(color=budget_period["category"].map(st.session_state.all_categories), pattern=dict(shape="/")),
+            opacity=0.4,
+            yaxis='y2',
+            showlegend=False,
+            customdata=budget_period["description"],
+            hovertemplate=(
+                "<b>%{customdata}</b><br>"
+                "Date : %{x}<br>"
+                "Montant : %{y} " + MONEY_SYMBOL + "<br>"
+            )
+        ))
+
+    fig.add_trace(go.Bar(
+        x=period["date"],
+        y=period["amount"],
+        name='Dépenses',
+        marker=dict(color=period["category"].map(st.session_state.all_categories)),
+        opacity=0.8,
+        yaxis='y2',
+        showlegend=False,
+        customdata=period["description"],
+        hovertemplate=(
+            "<b>%{customdata}</b><br>"
+            "Date : %{x}<br>"
+            "Montant : %{y} " + MONEY_SYMBOL + "<br>"
+        )
+    ))
+
     fig.update_xaxes(showgrid=True)
     fig.update_layout(
+        xaxis=dict(title="Date"), 
+        yaxis=dict(title="Balance", showgrid=True), # Axe principal
+        yaxis2=dict(title="Dépenses", overlaying='y', side='right', showgrid=False), # Axe secondaire
         title=f"Balance de la période : {daily_balance.iloc[-1]['balance'] - st.session_state.offset:+.2f} {MONEY_SYMBOL}",
-        xaxis_title="Date",
-        yaxis_title="Balance",
         legend=dict(
             orientation="h",
             yanchor="top",
@@ -1126,7 +1161,8 @@ def display_daily_balance(
             xanchor="center",
             x=0.5
         ),
-        margin=dict(b=100) 
+        margin=dict(b=100),
+        barmode='group'
     )
 
     st.plotly_chart(fig)
@@ -1500,7 +1536,9 @@ def run_output_ui(
         
         display_daily_balance(
             daily_balance=daily_balance,
-            budget_balance=budget_balance,    
+            period=period,
+            budget_balance=budget_balance,   
+            budget_period=budget_period, 
         )
         # display_waterfall(
         #     period=period,

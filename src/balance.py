@@ -149,7 +149,7 @@ def get_daily_balance(
     one_day = relativedelta(days=1)
     daily_balance = pd.DataFrame(columns=["date", "balance"])
 
-    day = period_start
+    day = period_start - one_day # TO SHOW THE FIRST BUMP
     while day < period_end :
 
         expenses_before_day = (
