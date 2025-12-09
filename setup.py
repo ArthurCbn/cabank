@@ -1,9 +1,9 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name="cabank",
     version="1.0.0",
-    py_modules=["balance", "main", "utils", "cli"],
+    packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=[
         "streamlit>=1.51.0",
@@ -13,7 +13,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "cabank=cli:run"
+            "cabank=cabank.cli:run"
         ]
     },
     author="Arthur Cabon",

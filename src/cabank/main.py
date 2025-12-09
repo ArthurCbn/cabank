@@ -13,7 +13,7 @@ import os
 import shutil
 import json
 from pathlib import Path
-from utils import (
+from cabank.utils import (
     format_datetime,
     combine_and_save_csv,
     is_periodic_occurence_ignored,
@@ -21,7 +21,7 @@ from utils import (
     plot_custom_waterfall,
     hex_to_rgba
 )
-from balance import (
+from cabank.balance import (
     get_real_period,
     get_budget_period,
     get_daily_balance,
@@ -33,7 +33,7 @@ from streamlit_calendar import calendar
 
 # region |---| Root
 
-SRC_PATH = Path(__file__).absolute().parent
+SRC_PATH = Path(__file__).absolute().parent.parent
 ROOT_PATH = SRC_PATH.parent
 
 DATA_PATH = ROOT_PATH / "data"

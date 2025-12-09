@@ -1,7 +1,7 @@
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import pandas as pd
-from utils import (
+from cabank.utils import (
     safe_get,
     safe_concat,
     apply_modifs_to_period,
