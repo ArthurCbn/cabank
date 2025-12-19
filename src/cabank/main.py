@@ -19,13 +19,15 @@ from cabank.utils import (
     is_periodic_occurence_ignored,
     update_category_name,
     plot_custom_waterfall,
-    hex_to_rgba
+    hex_to_rgba,
+    safe_concat
 )
 from cabank.balance import (
     get_real_period,
     get_budget_period,
     get_daily_balance,
     get_offset,
+    build_checkpoint_adjustments,
 )
 from streamlit_calendar import calendar
 
@@ -88,19 +90,6 @@ if "first_day" not in st.session_state :
 
 # endregion
 
-# region |---| Offset
-
-calibration = CONFIG.get("calibration", {})
-
-REF_DAY = calibration.get("ref_day", None)
-if not REF_DAY is None :
-    REF_DAY = datetime.strptime(REF_DAY, "%Y-%m-%d")
-st.session_state.ref_day = REF_DAY
-
-st.session_state.ref_balance = calibration.get("ref_balance", None)
-
-# endregion
-
 # region |---| Period
 
 TODAY = datetime.now()
@@ -117,6 +106,44 @@ if "period_start" not in st.session_state :
         st.session_state.period_start = month
 
 st.session_state.period_end = st.session_state.period_start + relativedelta(months=st.session_state.horizon) 
+
+# endregion
+
+# region |---| Checkpoints
+
+CHECKPOINTS_PATH = USER_PATH / "checkpoints.csv"
+
+if CHECKPOINTS_PATH.exists() :
+    FULL_CHECKPOINTS = pd.read_csv(CHECKPOINTS_PATH)
+
+    FULL_CHECKPOINTS["date"] = format_datetime(FULL_CHECKPOINTS["date"])
+    FULL_CHECKPOINTS["net_position"] = FULL_CHECKPOINTS["net_position"].astype(float)
+
+else :
+    columns = {
+        "date": "datetime64[ns]",
+        "net_position": "float64",
+    }
+    FULL_CHECKPOINTS = pd.DataFrame({col: pd.Series(dtype=col_type) for col, col_type in columns.items()})
+
+FULL_CHECKPOINTS = FULL_CHECKPOINTS.sort_values("date").reset_index(drop=True)
+
+# Infer offset and ref_day
+REF_DAY, REF_BALANCE = None, None
+
+if len(FULL_CHECKPOINTS) > 0 :
+    REF_DAY = FULL_CHECKPOINTS["date"].iloc[-1]
+    REF_BALANCE = FULL_CHECKPOINTS["net_position"].iloc[-1]
+    CHECKPOINTS = FULL_CHECKPOINTS[FULL_CHECKPOINTS["date"] >= min(REF_DAY, st.session_state.period_start)]
+else :
+    CHECKPOINTS = FULL_CHECKPOINTS
+
+st.session_state.ref_day = REF_DAY
+st.session_state.ref_balance = REF_BALANCE
+
+
+if "checkpoints" not in st.session_state :
+    st.session_state.checkpoints = CHECKPOINTS
 
 # endregion
 
@@ -324,6 +351,17 @@ st.session_state.all_tags = []
 
 # endregion
 
+# region |---| Apply checkpoints
+ADJUSTMENTS = build_checkpoint_adjustments(
+    checkpoints=st.session_state.checkpoints,
+    periodics=FULL_PERIODICS,
+    ponctuals=FULL_PONCTUALS,
+    modify_periodic_occurences=st.session_state.modify_periodic_occurences,
+)
+st.session_state.adjustments = ADJUSTMENTS
+
+# endregion
+
 # region |---| Calendars tweaks
 
 # Trick to force update of the calendar when needed (it doesnt refresh alone)
@@ -395,43 +433,38 @@ def display_settings() :
 
 # endregion
 
-# region |---|---| Offset
+# region |---|---| Checkpoints
 
-def display_offset() :
+@st.dialog("Solde ce jour")
+def display_checkpoint_form() :
 
-    with st.form("ref_form", border=False) :
+    with st.form("checkpoints_form", border=False) :
 
-        col_ref_form  = st.columns([2, 2, 1], vertical_alignment="bottom")
+        col_checkpoints_form  = st.columns([2, 2, 1], vertical_alignment="bottom")
 
-        ref_day_input = col_ref_form[0].date_input(
-            "Jour de référence",
-            format="DD-MM-YYYY",
-            key="ref_day_input",
-            value=st.session_state.ref_day
-        )
-        ref_balance_input = col_ref_form[1].number_input(
-            "Solde", 
+        acount_balance_input = col_checkpoints_form[0].number_input(
+            "Solde compte", 
             format="%.2f", 
             step=1.,
-            value=st.session_state.ref_balance
+        )
+        credit_balance_input = col_checkpoints_form[1].number_input(
+            "En cours CB", 
+            format="%.2f", 
+            step=1.,
         )
 
-        ref_submit_button  = col_ref_form[2].form_submit_button(
+        ref_submit_button  = col_checkpoints_form[2].form_submit_button(
             "Valider", 
             width="stretch"
         )
 
         if ref_submit_button :
-            st.session_state.ref_day = datetime.combine(ref_day_input, time.min)
-            st.session_state.ref_balance = ref_balance_input
-
-            CONFIG["calibration"] = {
-                "ref_day": st.session_state.ref_day.strftime("%Y-%m-%d"),
-                "ref_balance": ref_balance_input
+            
+            st.session_state.checkpoints.loc[len(st.session_state.checkpoints)] = {
+                "date": TODAY.date(), 
+                "net_position": acount_balance_input - credit_balance_input
             }
-            with open(CONFIG_PATH, "w") as f :
-                json.dump(CONFIG, f, indent=4)
-
+            st.session_state.checkpoints.to_csv(CHECKPOINTS_PATH, index=False)
             st.rerun()
 
 # endregion
@@ -1485,12 +1518,9 @@ def run_input_ui_and_get_mixed_placeholder() :
 
     with col_title[1].expander(label="Réglages", expanded=True) :
 
-        tab_settings, tab_offset, tab_config = st.tabs(["Paramètres", "Calibration", "Configuration"])
+        tab_settings, tab_config = st.tabs(["Paramètres", "Configuration"])
         with tab_settings :
             display_settings()
-        
-        with tab_offset :
-            display_offset()
         
         with tab_config :
             display_config()
@@ -1555,6 +1585,10 @@ def run_output_ui(
             budget_balance=budget_balance,   
             budget_period=budget_period, 
         )
+
+        if st.button("Ajouter un checkpoint", width="stretch") :
+            display_checkpoint_form()
+
         # display_waterfall(
         #     period=period,
         #     budget_period=budget_period,
@@ -1637,7 +1671,7 @@ if __name__ == '__main__' :
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
         periodics=st.session_state.periodics,
-        ponctuals=st.session_state.ponctuals,
+        ponctuals=safe_concat(st.session_state.ponctuals, st.session_state.adjustments),
         modify_periodic_occurences=st.session_state.modify_periodic_occurences,
     )
 

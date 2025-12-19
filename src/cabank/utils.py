@@ -39,7 +39,7 @@ def safe_concat(
     if len(df2) == 0 :
         return df1
     
-    return pd.concat([df1, df2])
+    return pd.concat([df1, df2]).reset_index(drop=True)
 
 
 def serialize_list_columns(
