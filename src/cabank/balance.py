@@ -6,6 +6,7 @@ from cabank.utils import (
     safe_concat,
     apply_modifs_to_period,
 )
+import uuid
 
 
 # region PERIODICS
@@ -239,3 +240,70 @@ def get_offset(
     return offset
 
 # endregion
+
+
+# region CHECKPOINT
+
+def build_checkpoint_adjustments(
+    checkpoints: pd.DataFrame,
+    periodics: pd.DataFrame,
+    ponctuals: pd.DataFrame,
+    modify_periodic_occurences: dict,
+    category: str="Quotidien",
+    tags: list[str]=[],
+) -> pd.DataFrame:
+    """
+    Build synthetic ponctual expenses that reconcile real balances
+    between successive checkpoints.
+    """
+
+    if len(checkpoints) < 2:
+        return pd.DataFrame(columns=[
+            "date", "category", "tags", "description", "amount", "id"
+        ])
+
+    synthetic_rows = []
+
+    for i in range(len(checkpoints) - 1):
+        c_start = checkpoints.iloc[i]
+        c_end = checkpoints.iloc[i+1]
+
+        period_start = c_start["date"]
+        period_end = c_end["date"]
+
+        # --- Real variation
+        real_delta = c_end["net_position"] - c_start["net_position"]
+        
+        # --- Theoretical variation (from recorded expenses)
+        aggregated_period = get_real_period(
+            period_start=period_start,
+            period_end=period_end + relativedelta(days=1), # This excludes period_end but we want the balance at the end of this day
+            periodics=periodics,
+            ponctuals=ponctuals,
+            modify_periodic_occurences=modify_periodic_occurences,
+        )
+
+        theoretical_delta = aggregated_period["amount"].sum()
+
+        adjustment = real_delta - theoretical_delta
+
+        # Ignore near-zero noise
+        if abs(adjustment) < 0.01:
+            continue
+
+        synthetic_rows.append({
+            "date": period_end,
+            "category": category,
+            "tags": tags,
+            "description": (
+                f"Ajustement auto checkpoint"
+                f"{period_start.date()} → {period_end.date()}"
+            ),
+            "amount": adjustment,
+            "id": str(uuid.uuid4())
+        })
+
+    return pd.DataFrame(synthetic_rows)
+
+# endregion
+

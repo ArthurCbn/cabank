@@ -1,17 +1,18 @@
 {
     "categories": {
-        "Logement": "#6BCFCF",
-        "Nourriture": "#F6D676",
         "Salaire": "#4E79A7",
         "Epargne": "#E15759",
-        "Transport": "#76B947",
-        "Sortie": "#C999E5",
+        "Logement": "#59B3B3",
+        "Transport": "#59A14F",
+        "Courses": "#EDC948",
+        "Sortie": "#B07AA1",
         "Service": "#F28E2B",
+        "Achat": "#2E7D32",
+        "Remboursement": "#8F63BF",
         "Autre": "#9A9A9A",
-        "Achat": "#59A14F",
-        "Remboursement": "#8F63BF"
+        "Quotidien": "#C0C0C0"
     },
     "first_day": 1,
     "money_format": "euro",
-    "money_symbol": "€"
+    "money_symbol": "\u20ac"
 }
