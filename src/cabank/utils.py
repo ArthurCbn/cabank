@@ -27,7 +27,7 @@ def safe_get(
 
 
 def format_datetime(serie: pd.Series) -> pd.Series :
-    return pd.to_datetime(serie, format="%Y-%m-%d")
+    return pd.to_datetime(serie)
 
 
 def safe_concat(
