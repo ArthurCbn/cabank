@@ -272,7 +272,6 @@ def build_checkpoint_adjustments(
 
         period_start = c_start["date"]
         period_end = c_end["date"]
-
         period_duration = (period_end - period_start).days
 
         # --- Real variation
@@ -289,7 +288,7 @@ def build_checkpoint_adjustments(
 
         theoretical_delta = aggregated_period["amount"].sum()
 
-        adjustment = real_delta - theoretical_delta
+        adjustment = - (real_delta - theoretical_delta) # all amounts are entered negatively
 
         # Ignore near-zero noise
         if abs(adjustment) < 0.01:
@@ -311,11 +310,11 @@ def build_checkpoint_adjustments(
             continue
         
         # Stretch the adjustments over the time between the checkpoints
-        number_of_adjustments = period_duration % adjustments_step_days
+        number_of_adjustments = period_duration // adjustments_step_days
         splitted_adjustment = split_amount(adjustment, number_of_adjustments)
 
         for i in range(number_of_adjustments) :
-            adjustment_date = period_end + relativedelta(days=(i+1)*adjustments_step_days)
+            adjustment_date = period_start + relativedelta(days=(i+1)*adjustments_step_days)
             synthetic_rows.append({
                 "date": adjustment_date,
                 "category": category,
@@ -327,7 +326,6 @@ def build_checkpoint_adjustments(
                 "amount": splitted_adjustment[i],
                 "id": str(uuid.uuid4())
             })
-
 
     return pd.DataFrame(synthetic_rows)
 

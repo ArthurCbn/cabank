@@ -134,16 +134,17 @@ REF_DAY, REF_BALANCE = None, None
 if len(FULL_CHECKPOINTS) > 0 :
     REF_DAY = FULL_CHECKPOINTS["date"].iloc[-1]
     REF_BALANCE = FULL_CHECKPOINTS["net_position"].iloc[-1]
-    CHECKPOINTS = FULL_CHECKPOINTS[FULL_CHECKPOINTS["date"] >= min(REF_DAY, st.session_state.period_start)]
+
+    CHECKPOINTS_DURING_PERIOD = FULL_CHECKPOINTS[FULL_CHECKPOINTS["date"] >= st.session_state.period_start]
+    LAST_CHECKPOINT_BEFORE_PERIOD = FULL_CHECKPOINTS[FULL_CHECKPOINTS["date"] < st.session_state.period_start].tail(1)
+    
+    CHECKPOINTS = safe_concat(LAST_CHECKPOINT_BEFORE_PERIOD, CHECKPOINTS_DURING_PERIOD)
 else :
     CHECKPOINTS = FULL_CHECKPOINTS
 
 st.session_state.ref_day = REF_DAY
 st.session_state.ref_balance = REF_BALANCE
-
-
-if "checkpoints" not in st.session_state :
-    st.session_state.checkpoints = CHECKPOINTS
+st.session_state.checkpoints = CHECKPOINTS
 
 # endregion
 
@@ -359,7 +360,6 @@ ADJUSTMENTS = build_checkpoint_adjustments(
     modify_periodic_occurences=st.session_state.modify_periodic_occurences,
 )
 st.session_state.adjustments = ADJUSTMENTS
-
 # endregion
 
 # region |---| Calendars tweaks
@@ -1659,7 +1659,7 @@ if __name__ == '__main__' :
             ref_balance=st.session_state.ref_balance,
             target_day=st.session_state.period_start,
             periodics=FULL_PERIODICS,
-            ponctuals=FULL_PONCTUALS,
+            ponctuals=safe_concat(FULL_PONCTUALS, st.session_state.adjustments),
             modify_periodic_occurences=st.session_state.modify_periodic_occurences
         )
 
