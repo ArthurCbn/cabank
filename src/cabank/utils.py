@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 import plotly.graph_objects as go
 import json
+from decimal import Decimal, ROUND_HALF_UP
 
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -271,4 +272,24 @@ def plot_custom_waterfall(
         y1=amounts_budget[-1],
         line=dict(color="gray", width=1, dash="dot")
     )
+
+
+def split_amount(
+        x: float, 
+        n: int
+) -> list[float]:
     
+    if n <= 0:
+        raise ValueError("n must be > 0")
+
+    # Convert to cents safely
+    cents = int((Decimal(str(x)) * 100).to_integral_value(ROUND_HALF_UP))
+
+    base = cents // n
+    remainder = cents % n
+
+    # Distribute remainder (1 cent each)
+    parts = [base + 1 if i < remainder else base for i in range(n)]
+
+    # Convert back to floats
+    return [p / 100 for p in parts]

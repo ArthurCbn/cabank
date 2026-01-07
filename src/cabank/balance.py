@@ -5,6 +5,7 @@ from cabank.utils import (
     safe_get,
     safe_concat,
     apply_modifs_to_period,
+    split_amount,
 )
 import uuid
 
@@ -251,6 +252,7 @@ def build_checkpoint_adjustments(
     modify_periodic_occurences: dict,
     category: str="Quotidien",
     tags: list[str]=[],
+    adjustments_step_days: int|None=7,
 ) -> pd.DataFrame:
     """
     Build synthetic ponctual expenses that reconcile real balances
@@ -271,13 +273,15 @@ def build_checkpoint_adjustments(
         period_start = c_start["date"]
         period_end = c_end["date"]
 
+        period_duration = (period_end - period_start).days
+
         # --- Real variation
         real_delta = c_end["net_position"] - c_start["net_position"]
         
         # --- Theoretical variation (from recorded expenses)
         aggregated_period = get_real_period(
-            period_start=period_start,
-            period_end=period_end + relativedelta(days=1), # This excludes period_end but we want the balance at the end of this day
+            period_start=period_start + relativedelta(days=1), # This includes period_start but we want expenses starting from the next day
+            period_end=period_end + relativedelta(days=1), # This excludes period_end but we include expenses on period_end day
             periodics=periodics,
             ponctuals=ponctuals,
             modify_periodic_occurences=modify_periodic_occurences,
@@ -290,18 +294,40 @@ def build_checkpoint_adjustments(
         # Ignore near-zero noise
         if abs(adjustment) < 0.01:
             continue
+        
+        # Only 1 adjustment if the interval between checkpoints is too short 
+        if (adjustments_step_days is None) or (period_duration <= adjustments_step_days) :
+            synthetic_rows.append({
+                "date": period_end,
+                "category": category,
+                "tags": tags,
+                "description": (
+                    f"Ajustement auto checkpoint"
+                    f"{period_start.date()} → {period_end.date()}"
+                ),
+                "amount": adjustment,
+                "id": str(uuid.uuid4())
+            })
+            continue
+        
+        # Stretch the adjustments over the time between the checkpoints
+        number_of_adjustments = period_duration % adjustments_step_days
+        splitted_adjustment = split_amount(adjustment, number_of_adjustments)
 
-        synthetic_rows.append({
-            "date": period_end,
-            "category": category,
-            "tags": tags,
-            "description": (
-                f"Ajustement auto checkpoint"
-                f"{period_start.date()} → {period_end.date()}"
-            ),
-            "amount": adjustment,
-            "id": str(uuid.uuid4())
-        })
+        for i in range(number_of_adjustments) :
+            adjustment_date = period_end + relativedelta(days=(i+1)*adjustments_step_days)
+            synthetic_rows.append({
+                "date": adjustment_date,
+                "category": category,
+                "tags": tags,
+                "description": (
+                    f"Ajustement auto checkpoint"
+                    f"{period_start.date()} → {period_end.date()}"
+                ),
+                "amount": splitted_adjustment[i],
+                "id": str(uuid.uuid4())
+            })
+
 
     return pd.DataFrame(synthetic_rows)
 
