@@ -333,3 +333,46 @@ def build_checkpoint_adjustments(
 
 # endregion
 
+def get_provisions(
+        period_start: datetime,
+        period_end: datetime,
+        periodics: pd.DataFrame
+) -> pd.DataFrame :
+    
+    period_duration_days = (period_end - period_start).days
+    period_duration_months = round(period_duration_days/30)
+    
+    periodics_this_period = get_all_periodics_in_period(
+        period_start=period_start,
+        period_end=period_end,
+        data=periodics,
+    )
+
+    periodics_this_year = get_all_periodics_in_period(
+        period_start=period_start,
+        period_end=period_start + relativedelta(years=1),
+        data=periodics,
+    )
+
+    periodics_this_period_grouped = periodics_this_period[["amount", "periodic_id", "description"]].groupby(["periodic_id", "description"]).sum()
+    periodics_this_year_grouped = periodics_this_year[["amount", "periodic_id", "description"]].groupby(["periodic_id", "description"]).sum()
+
+    smoothed_periodics = periodics_this_year_grouped
+    smoothed_periodics["amount"] = smoothed_periodics["amount"].apply(lambda x: round(x*(period_duration_months/12), 2))
+
+    merged = (
+        smoothed_periodics[["amount"]]
+        .merge(
+            periodics_this_period_grouped[["amount"]],
+            left_index=True,
+            right_index=True,
+            how="outer",
+            suffixes=("_smoothed", "_period")
+        )
+        .fillna(0)
+        .droplevel("periodic_id")
+    )
+
+    merged["provision"] = round(merged["amount_smoothed"] - merged["amount_period"], 2)
+
+    return merged[abs(merged["provision"]) > 1e-4]
