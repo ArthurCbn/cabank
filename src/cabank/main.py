@@ -3,6 +3,7 @@ from datetime import (
     time,
 )
 import uuid
+import math
 from dateutil.relativedelta import relativedelta
 import pandas as pd
 from enum import Enum
@@ -28,6 +29,7 @@ from cabank.balance import (
     get_daily_balance,
     get_offset,
     build_checkpoint_adjustments,
+    get_provisions,
 )
 from streamlit_calendar import calendar
 
@@ -1104,7 +1106,61 @@ def display_budget_periodics_editor() :
 # region |---| Stats
 
 def display_monthly_stats() :
-    ... # TODO large period selector + stats by month by category (one plot per cat)
+    
+    col_provisions, _ = st.columns(2)
+
+# region |---|---| Provision
+
+    provisions = get_provisions(
+        period_start=st.session_state.period_start,
+        period_end=st.session_state.period_end,
+        periodics=st.session_state.periodics
+    )
+    total_provision = math.ceil(-provisions["provision"].sum())
+
+    labels = provisions.index
+    values = abs(provisions["provision"])
+    colors = provisions["provision"].apply(lambda x: "green" if x >= 0 else "#ff7f7f")
+
+    fig = go.Figure(
+        data=[
+            go.Pie(
+                labels=labels,
+                values=values,
+                hole=0.6,
+                marker_colors=colors,
+                textinfo="percent",
+                customdata=-provisions["provision"],
+                hovertemplate="<b>%{label}</b><br>%{customdata:+,.2f}" + f" {MONEY_SYMBOL}<extra></extra>",
+                showlegend=False,
+                marker=dict(
+                    colors=colors,
+                    line=dict(color="white", width=2)  # séparation entre les sections
+                ),
+            )
+        ]
+    )
+
+    fig.update_layout(
+        showlegend=True,
+        annotations=[
+            dict(
+                text=f"{total_provision:,.0f} {MONEY_SYMBOL}",
+                x=0.5,
+                y=0.5,
+                font_size=28,
+                showarrow=False,
+            )
+        ],
+        margin=dict(t=20, b=20, l=20, r=20),
+        title="Provisions conseillées pour la période",
+    )
+    with col_provisions :
+        st.plotly_chart(fig)
+
+# endregion
+
+    # TODO large period selector + stats by month by category (one plot per cat)
 
 # endregion
 
