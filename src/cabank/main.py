@@ -461,7 +461,7 @@ def display_checkpoint_form() :
         if ref_submit_button :
             st.session_state.checkpoints.loc[len(st.session_state.checkpoints)] = {
                 "date": pd.to_datetime(TODAY).normalize(), 
-                "net_position": acount_balance_input - credit_balance_input
+                "net_position": f"{acount_balance_input - credit_balance_input:.2f}"
             }
             st.session_state.checkpoints.to_csv(CHECKPOINTS_PATH, index=False)
             st.rerun()

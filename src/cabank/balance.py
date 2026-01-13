@@ -8,6 +8,7 @@ from cabank.utils import (
     split_amount,
 )
 import uuid
+from decimal import Decimal, ROUND_HALF_UP
 
 
 # region PERIODICS
@@ -288,7 +289,8 @@ def build_checkpoint_adjustments(
 
         theoretical_delta = aggregated_period["amount"].sum()
 
-        adjustment = - (real_delta - theoretical_delta) # all amounts are entered negatively
+        adjustment = -(Decimal(real_delta) - Decimal(theoretical_delta)) # all amounts are entered negatively
+        adjustment = float(adjustment.quantize(Decimal("0.00"), rounding=ROUND_HALF_UP))
 
         # Ignore near-zero noise
         if abs(adjustment) < 0.01:
