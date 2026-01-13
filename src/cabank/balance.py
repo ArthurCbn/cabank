@@ -336,7 +336,8 @@ def build_checkpoint_adjustments(
 def get_provisions(
         period_start: datetime,
         period_end: datetime,
-        periodics: pd.DataFrame
+        periodics: pd.DataFrame,
+        modify_periodic_occurences: dict[str, dict[str, float|None]]
 ) -> pd.DataFrame :
     
     period_duration_days = (period_end - period_start).days
@@ -347,11 +348,19 @@ def get_provisions(
         period_end=period_end,
         data=periodics,
     )
+    periodics_this_period = apply_modifs_to_period(
+        period=periodics_this_period,
+        modify_periodic_occurences=modify_periodic_occurences,
+    )
 
     periodics_this_year = get_all_periodics_in_period(
         period_start=period_start,
         period_end=period_start + relativedelta(years=1),
         data=periodics,
+    )
+    periodics_this_year = apply_modifs_to_period(
+        period=periodics_this_year,
+        modify_periodic_occurences=modify_periodic_occurences,
     )
 
     periodics_this_period_grouped = periodics_this_period[["amount", "periodic_id", "description"]].groupby(["periodic_id", "description"]).sum()

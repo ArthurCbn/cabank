@@ -1114,13 +1114,14 @@ def display_monthly_stats() :
     provisions = get_provisions(
         period_start=st.session_state.period_start,
         period_end=st.session_state.period_end,
-        periodics=st.session_state.periodics
+        periodics=FULL_PERIODICS,
+        modify_periodic_occurences=st.session_state.modify_periodic_occurences
     )
     total_provision = math.ceil(-provisions["provision"].sum())
 
     labels = provisions.index
     values = abs(provisions["provision"])
-    colors = provisions["provision"].apply(lambda x: "green" if x >= 0 else "#ff7f7f")
+    colors = provisions["provision"].apply(lambda x: "#7BC8A4" if x >= 0 else "#ff7f7f")
 
     fig = go.Figure(
         data=[
