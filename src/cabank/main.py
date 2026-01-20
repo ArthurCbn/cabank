@@ -21,7 +21,8 @@ from cabank.utils import (
     update_category_name,
     plot_custom_waterfall,
     hex_to_rgba,
-    safe_concat
+    safe_concat,
+    open_file_edition
 )
 from cabank.balance import (
     get_real_period,
@@ -1642,8 +1643,12 @@ def run_output_ui(
             budget_period=budget_period, 
         )
 
-        if st.button("Ajouter un checkpoint", width="stretch") :
+        col_new, col_edit = st.columns(2)
+        if col_new.button("Ajouter un checkpoint", width="stretch") :
             display_checkpoint_form()
+        
+        if col_edit.button("Editer les checkpoints", width="stretch") :
+            open_file_edition(CHECKPOINTS_PATH)
 
         # display_waterfall(
         #     period=period,

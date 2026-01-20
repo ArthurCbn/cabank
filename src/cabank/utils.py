@@ -5,6 +5,10 @@ from pathlib import Path
 import plotly.graph_objects as go
 import json
 from decimal import Decimal, ROUND_HALF_UP
+import subprocess
+import os
+import sys
+import shutil
 
 
 def hex_to_rgba(hex_color: str, alpha: float) -> str:
@@ -293,3 +297,27 @@ def split_amount(
 
     # Convert back to floats
     return [p / 100 for p in parts]
+
+
+def open_file_edition(path: Path) :
+
+    assert path.exists(), "Checkpoint csv non existent"
+
+    if sys.platform.startswith("linux"):
+        
+        for editeur in ["gedit", "gnome-text-editor", "code", "kate", "mousepad", "nano", "vim"] :
+            if shutil.which(editeur):
+                subprocess.run([editeur, path])
+                return
+        raise RuntimeError("Aucun éditeur de texte trouvé")
+        
+        subprocess.run([editor, path])
+        return
+    elif sys.platform == "darwin":
+        subprocess.run(["open", "-e", path])
+        return
+    elif sys.platform == "win32":
+        os.startfile(path)
+        return
+    
+    raise RuntimeError("Système d'exploitation non reconnu")
