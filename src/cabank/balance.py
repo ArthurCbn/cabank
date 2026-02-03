@@ -382,6 +382,9 @@ def get_provisions(
         .droplevel("periodic_id")
     )
 
-    merged["provision"] = round(merged["amount_smoothed"] - merged["amount_period"], 2)
+    if len(merged) == 0 :
+        merged["provision"] = []
+    else :
+        merged["provision"] = round(merged["amount_smoothed"] - merged["amount_period"], 2)
 
     return merged[abs(merged["provision"]) > 1e-4]
