@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cabank"
+version = "1.0.0"
+description = "Outil pour faire ses comptes"
+authors = [
+    { name = "Arthur Cabon" }
+]
+requires-python = ">=3.8"
+dependencies = [
+    "streamlit>=1.51.0",
+    "pandas",
+    "plotly",
+    "streamlit-calendar",
+    "platformdirs"
+]
+
+[project.scripts]
+cabank = "cabank.cli:run"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cabank = ["data/*.json"]

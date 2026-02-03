@@ -1,3 +1,5 @@
+from platformdirs import user_data_dir, user_config_dir
+import importlib.resources as resources
 from datetime import (
     datetime,
     time,
@@ -36,59 +38,72 @@ from streamlit_calendar import calendar
 
 # region INIT
 
-# region |---| Root
+APP_NAME = "cabank"
+APP_AUTHOR = "ArthurCabon"
 
-SRC_PATH = Path(__file__).absolute().parent.parent
-ROOT_PATH = SRC_PATH.parent
+# region |---| Base directories
 
-DATA_PATH = ROOT_PATH / "data"
-if not DATA_PATH.exists() :
-    os.mkdir(DATA_PATH)
+DATA_PATH = Path(user_data_dir(APP_NAME, APP_AUTHOR))
+CONFIG_ROOT_PATH = Path(user_config_dir(APP_NAME, APP_AUTHOR))
 
-DEFAULT_CONFIG_PATH = DATA_PATH / "default_config.json"
+DATA_PATH.mkdir(parents=True, exist_ok=True)
+CONFIG_ROOT_PATH.mkdir(parents=True, exist_ok=True)
+
+# endregion
+
+# region |---| Default config
+
+DEFAULT_CONFIG_PATH = CONFIG_ROOT_PATH / "default.json"
+
+if not DEFAULT_CONFIG_PATH.exists():
+    with resources.files("cabank").joinpath("data/default_config.json").open("rb") as src:
+        with DEFAULT_CONFIG_PATH.open("wb") as dst:
+            shutil.copyfileobj(src, dst)
 
 # endregion
 
 # region |---| User
 
 ALL_USERS = [
-    user_folder.stem 
-    for user_folder in sorted(DATA_PATH.iterdir()) 
-    if ( user_folder.is_dir() and user_folder.stem != "default" ) 
+    p.name
+    for p in sorted(DATA_PATH.iterdir())
+    if p.is_dir() and p.name != "default"
 ]
 
-if not "user" in st.session_state :
-    st.session_state.user = ALL_USERS[0] if len(ALL_USERS) > 0 else "default"
+if "user" not in st.session_state:
+    st.session_state.user = ALL_USERS[0] if ALL_USERS else "default"
 
 USER_PATH = DATA_PATH / st.session_state.user
-if not USER_PATH.exists() :
-    os.mkdir(USER_PATH)
+USER_PATH.mkdir(parents=True, exist_ok=True)
+
+if st.session_state.user not in ALL_USERS:
     ALL_USERS.append(st.session_state.user)
 
 # endregion
 
 # region |---| Config
 
-CONFIG_PATH = USER_PATH / "config.json"
-if not CONFIG_PATH.exists() :
-    shutil.copy(DEFAULT_CONFIG_PATH, CONFIG_PATH)
+USER_CONFIG_PATH = CONFIG_ROOT_PATH / f"{st.session_state.user}.json"
 
-with open(CONFIG_PATH, "r") as f :
+if not USER_CONFIG_PATH.exists():
+    shutil.copy(DEFAULT_CONFIG_PATH, USER_CONFIG_PATH)
+
+with USER_CONFIG_PATH.open("r", encoding="utf-8") as f:
     CONFIG = json.load(f)
 
 MONEY_FORMAT = CONFIG.get("money_format", "")
 MONEY_SYMBOL = CONFIG.get("money_symbol", "")
 
-if "all_categories" not in st.session_state :
+if "all_categories" not in st.session_state:
     st.session_state.all_categories = CONFIG.get("categories", {})
 
-if "categories_id" not in st.session_state :
+if "categories_id" not in st.session_state:
     st.session_state.categories_id = {
-        uuid.uuid4(): cat 
+        uuid.uuid4(): cat
         for cat in st.session_state.all_categories
     }
 
-if "first_day" not in st.session_state :
+if "first_day" not in st.session_state:
     st.session_state.first_day = CONFIG.get("first_day", 1)
 
 # endregion
@@ -209,7 +224,7 @@ if PERIODICS_PATH.exists() :
 else :
     columns = {
         "category": "str",
-        "tags": "list",
+        "tags": "object",
         "description": "str", 
         "amount": "float64", 
         "first": "datetime64[ns]", 
@@ -269,7 +284,7 @@ else :
     columns = {
         "date": "datetime64[ns]", 
         "category": "str",
-        "tags": "list",
+        "tags": "object",
         "description": "str", 
         "amount": "float64", 
         "id": "str"

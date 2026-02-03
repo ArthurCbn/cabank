@@ -126,6 +126,9 @@ def apply_modifs_to_period(
         return get_periodic_occurence_modifications(date, amount, periodic_id, modify_periodic_occurences)
     
     modified_period = period.copy()
+    if len(modified_period) == 0 :
+        return modified_period
+    
     modified_period[["amount", "is_ignored"]] = modified_period.apply(_modify_row, axis=1, result_type="expand")
 
     return modified_period
